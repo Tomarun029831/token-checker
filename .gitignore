@@ -1,4 +1,5 @@
 token-checker
+CMakeUserPresets.json
 
 # Prerequisites
 *.d

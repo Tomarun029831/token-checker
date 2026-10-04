@@ -1,3 +1,5 @@
--I/usr/include/c++/13
--I/usr/include/x86_64-linux-gnu/c++/13
--I/usr/include/ZXing
+-std=c++17
+-I.
+-IC:/Users/humti/Documents/shikosai/token-checker/build/vcpkg_installed/x64-windows/include
+-DWIN32_LEAN_AND_MEAN
+-DNOMINMAX

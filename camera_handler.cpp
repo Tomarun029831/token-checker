@@ -1,155 +1,267 @@
-#include "camera_handler.hpp"
-#include "ImageView.h"
-#include <bits/types/struct_timeval.h>
-#include <cerrno>
-#include <cstdint>
+#include <windows.h>
+#include <mfapi.h>
+#include <mfidl.h>
+#include <mfreadwrite.h>
+#include <mferror.h>
+#include <wrl/client.h>
 #include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <sys/select.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <cstddef>
-#include <linux/videodev2.h>
-#include <sys/stat.h>
-#include <sys/ioctl.h>
-#include <sys/mman.h>
+#include <vector>
+#include "camera_handler.hpp"
 
-static int xioctl(int fd, unsigned long request, void *argp){
-	int r;
-	do {
-		r = ioctl(fd, request, argp); // https://www.man7.org/linux/man-pages/man2/ioctl.2.html
-	} while (r == -1 && errno == EINTR);	// https://man7.org/linux/man-pages/man7/signal.7.html
-											// the details In "Interruption of system calls and library functions by signal handlers"
-	return r;
+using Microsoft::WRL::ComPtr;
+
+namespace {
+
+constexpr UINT32 WIDTH = 640;
+constexpr UINT32 HEIGHT = 480;
+
+struct NativeCamera {
+    ComPtr<IMFMediaSource> source;
+    ComPtr<IMFSourceReader> reader;
+    UINT32 width = 0;
+    UINT32 height = 0;
+    LONG stride = 0;
+
+    // main.cppは元のYUYVインターフェースを使うため、
+    // YUY2入力からYUYV相当の2バイト/画素バッファを生成する。
+    std::vector<std::uint8_t> yuyv;
+};
+
+HRESULT create_source(std::size_t index, IMFMediaSource** result)
+{
+    if (!result) {
+        return E_POINTER;
+    }
+    *result = nullptr;
+
+    ComPtr<IMFAttributes> attributes;
+    HRESULT hr = MFCreateAttributes(&attributes, 1);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    hr = attributes->SetGUID(
+        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
+        MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    IMFActivate** devices = nullptr;
+    UINT32 count = 0;
+    hr = MFEnumDeviceSources(attributes.Get(), &devices, &count);
+    if (FAILED(hr)) {
+        return hr;
+    }
+
+    if (index >= count) {
+        for (UINT32 i = 0; i < count; ++i) {
+            devices[i]->Release();
+        }
+        CoTaskMemFree(devices);
+        return MF_E_NOT_FOUND;
+    }
+
+    hr = devices[index]->ActivateObject(IID_PPV_ARGS(result));
+    for (UINT32 i = 0; i < count; ++i) {
+        devices[i]->Release();
+    }
+    CoTaskMemFree(devices);
+    return hr;
 }
 
-// https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/capture.c.html
-CameraInfo open_camera(const size_t video_id){
-	// open the charactor device
-	const char dev_name[] = {
-		'/','d','e','v',
-		'/','v','i','d','e','o', static_cast<char>('0'+(video_id/10==0?video_id%10:video_id/10)), static_cast<char>((video_id/10==0?'\0':('0'+video_id%10))),'\0'};
-	struct stat st;
-	if(stat(dev_name, &st)==-1 || !S_ISCHR(st.st_mode)) return INVALID_CAMERA_INFO; // https://ja.manpages.org/stat/2
-	const int fd = open(dev_name, O_RDWR|O_NONBLOCK); // https://ja.manpages.org/open/2
-	if(fd==-1) return INVALID_CAMERA_INFO;
-	// check capability as video camera
-	struct v4l2_capability cap;
-	if(	xioctl(fd, VIDIOC_QUERYCAP, &cap)==-1 || // is V4L2-device
-		!(cap.capabilities & V4L2_CAP_VIDEO_CAPTURE) || // Is a video capture device
-		!(cap.capabilities & V4L2_CAP_STREAMING)) // streaming I/O ioctls
-		return INVALID_CAMERA_INFO;
-	// reset settings of device
-	struct v4l2_cropcap cropcap;
-	memset(&cropcap, 0, sizeof(cropcap));
-	cropcap.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	if(xioctl(fd, VIDIOC_CROPCAP, &cropcap)==0){
-		struct v4l2_crop crop;
-		crop.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		crop.c = cropcap.defrect;
-		xioctl(fd, VIDIOC_S_CROP, &crop);
-	}
-	// set video format
-	struct v4l2_format format;
-	memset(&format, 0, sizeof(format));
-	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	constexpr std::size_t optimized_width=640, optimized_height=480;
-	format.fmt.pix.width = optimized_width;
-	format.fmt.pix.height = optimized_height;
-	format.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
-	format.fmt.pix.field = V4L2_FIELD_ANY;
-	if(xioctl(fd, VIDIOC_S_FMT, &format)==-1 ||
-		format.fmt.pix.pixelformat != V4L2_PIX_FMT_YUYV)
-		return INVALID_CAMERA_INFO;
-	// Buggy driver paranoia
-	std::size_t min = format.fmt.pix.width * 2;
-	if (format.fmt.pix.bytesperline < min) format.fmt.pix.bytesperline = min;
-	min = format.fmt.pix.bytesperline * format.fmt.pix.height;
-	if (format.fmt.pix.sizeimage < min) format.fmt.pix.sizeimage = min;
-	// request kernel to allocate mapped-memory
-	struct v4l2_requestbuffers request;
-	memset(&request, 0, sizeof(request));
-	request.count = 4;
-	request.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	request.memory = V4L2_MEMORY_MMAP;
-	if(xioctl(fd, VIDIOC_REQBUFS, &request)==-1 || request.count < 2) return INVALID_CAMERA_INFO;
-	// bind memory to allocated memory
-	std::size_t n_buffers;
-	Buffer *const buffers = (Buffer *const)calloc(request.count, sizeof(*buffers));
-	if(buffers==NULL) return INVALID_CAMERA_INFO;
-	for(n_buffers=0; n_buffers<request.count; ++n_buffers){
-		struct v4l2_buffer video_buffer;
-		memset(&video_buffer, 0, sizeof(video_buffer));
-		video_buffer.type=V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		video_buffer.memory = V4L2_MEMORY_MMAP;
-		video_buffer.index = n_buffers;
-		if(xioctl(fd, VIDIOC_QUERYBUF, &video_buffer)==-1) return INVALID_CAMERA_INFO;
+} // namespace
 
-		buffers[n_buffers].length = video_buffer.length;
-		buffers[n_buffers].start = mmap(NULL, video_buffer.length, PROT_READ|PROT_WRITE, MAP_SHARED, fd, video_buffer.m.offset);
-		if(buffers[n_buffers].start == MAP_FAILED) return INVALID_CAMERA_INFO;
-	}
-	// let camera stream image
-	for(std::size_t i=0; i<n_buffers; ++i){
-		struct v4l2_buffer video_buffer;
-		memset(&video_buffer, 0, sizeof(video_buffer));
-		video_buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		video_buffer.memory = V4L2_MEMORY_MMAP;
-		video_buffer.index = i;
-		if(xioctl(fd, VIDIOC_QBUF, &video_buffer)==-1) return INVALID_CAMERA_INFO;
-	}
-	enum v4l2_buf_type type=V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	if(xioctl(fd, VIDIOC_STREAMON, &type)==-1) return INVALID_CAMERA_INFO;
-	return {fd, buffers, n_buffers, optimized_width, optimized_height};
+CameraInfo open_camera(const std::size_t video_id)
+{
+    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if (FAILED(hr) && hr != RPC_E_CHANGED_MODE) {
+        return INVALID_CAMERA_INFO;
+    }
+
+    hr = MFStartup(MF_VERSION);
+    if (FAILED(hr)) {
+        if (hr != RPC_E_CHANGED_MODE) {
+            CoUninitialize();
+        }
+        return INVALID_CAMERA_INFO;
+    }
+
+    auto* camera = new NativeCamera();
+
+    hr = create_source(video_id, &camera->source);
+    if (FAILED(hr)) {
+        delete camera;
+        MFShutdown();
+        CoUninitialize();
+        return INVALID_CAMERA_INFO;
+    }
+
+    ComPtr<IMFAttributes> reader_attributes;
+    hr = MFCreateAttributes(&reader_attributes, 1);
+    if (SUCCEEDED(hr)) {
+        // カメラがYUY2を直接返すことを優先し、別形式への変換は要求しない。
+        hr = reader_attributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, TRUE);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = MFCreateSourceReaderFromMediaSource(
+            camera->source.Get(), reader_attributes.Get(), &camera->reader);
+    }
+
+    ComPtr<IMFMediaType> type;
+    if (SUCCEEDED(hr)) {
+        hr = MFCreateMediaType(&type);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = type->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = type->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_YUY2);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = MFSetAttributeSize(type.Get(), MF_MT_FRAME_SIZE, WIDTH, HEIGHT);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = camera->reader->SetCurrentMediaType(
+            MF_SOURCE_READER_FIRST_VIDEO_STREAM, nullptr, type.Get());
+    }
+
+    ComPtr<IMFMediaType> actual_type;
+    UINT32 actual_width = 0;
+    UINT32 actual_height = 0;
+    if (SUCCEEDED(hr)) {
+        hr = camera->reader->GetCurrentMediaType(
+            MF_SOURCE_READER_FIRST_VIDEO_STREAM, &actual_type);
+    }
+    if (SUCCEEDED(hr)) {
+        hr = MFGetAttributeSize(
+            actual_type.Get(), MF_MT_FRAME_SIZE,
+            &actual_width, &actual_height);
+    }
+
+    UINT32 unsigned_stride = 0;
+    if (SUCCEEDED(hr) && SUCCEEDED(actual_type->GetUINT32(
+                                    MF_MT_DEFAULT_STRIDE,
+                                    &unsigned_stride))) {
+        camera->stride = static_cast<LONG>(unsigned_stride);
+    } else {
+        camera->stride = static_cast<LONG>(actual_width * 2);
+    }
+
+    if (FAILED(hr) || actual_width == 0 || actual_height == 0) {
+        camera->reader.Reset();
+        camera->source.Reset();
+        delete camera;
+        MFShutdown();
+        CoUninitialize();
+        return INVALID_CAMERA_INFO;
+    }
+
+    camera->width = actual_width;
+    camera->height = actual_height;
+    camera->yuyv.resize(
+        static_cast<std::size_t>(actual_width) * actual_height * 2);
+
+    return {
+        camera,
+        nullptr,
+        0,
+        camera->width,
+        camera->height};
 }
 
-int close_camera(const CameraInfo *const camera_info){
-	// stop stream from camera
-	enum v4l2_buf_type type=V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	if(xioctl(camera_info->charactor_file_descriptor, VIDIOC_STREAMOFF, &type)==-1) return EXIT_FAILURE;
-	// unmap buffers and free it
-	for(std::size_t i=0; i<camera_info->max_num_buffers; ++i)
-		if(munmap(camera_info->buffers[i].start, camera_info->buffers[i].length)==-1)
-			return EXIT_FAILURE;
-	free(camera_info->buffers);
-	// close charactor device
-	if(close(camera_info->charactor_file_descriptor)==-1) return EXIT_FAILURE;
-	return EXIT_SUCCESS;
+int close_camera(const CameraInfo* const camera_info)
+{
+    if (!camera_info || !camera_info->charactor_file_descriptor) {
+        return EXIT_FAILURE;
+    }
+
+    auto* camera = static_cast<NativeCamera*>(
+        camera_info->charactor_file_descriptor);
+    camera->reader.Reset();
+    camera->source->Shutdown();
+    camera->source.Reset();
+    delete camera;
+
+    MFShutdown();
+    CoUninitialize();
+    return EXIT_SUCCESS;
 }
 
-int process_next_frame(const CameraInfo *const camera_info, const std::function<void(const FrameBuffer *const)> &processer){
-	while(true){
-		// monitor file_descriptro with select
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(camera_info->charactor_file_descriptor, &fds);
-		struct timeval tv = {2, 0};
-		const int r = select(camera_info->charactor_file_descriptor+1, &fds, NULL, NULL, &tv);
-		if(r==-1) {
-			if(errno==EINTR) continue;
-			else return EXIT_FAILURE;
-		} else if(r==0) return EXIT_FAILURE; // timeout of select
-		// dequeue buffer
-		struct v4l2_buffer video_buffer;
-		memset(&video_buffer, 0, sizeof(video_buffer));
-		video_buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-		video_buffer.memory = V4L2_MEMORY_MMAP;
-		if(xioctl(camera_info->charactor_file_descriptor, VIDIOC_DQBUF, &video_buffer)==-1) { // https://www.man7.org/linux/man-pages/man3/errno.3.html
-			if(errno==EAGAIN||errno==EIO) continue; // Resource temporarily unavailable or Input/output error
-			else return EXIT_FAILURE;
-		}
-		// get pointer to dequeued buffer
-		if(video_buffer.index>=camera_info->max_num_buffers) return EXIT_FAILURE;
-		// process buffer
-		const FrameBuffer frame_buffer = {
-			ZXing::ImageFormat::Lum,
-			camera_info->width,
-			camera_info->height,
-			static_cast<const uint8_t *>(camera_info->buffers[video_buffer.index].start)};
-		processer(&frame_buffer);
-		// return dequeued buffer to kernel
-		if(xioctl(camera_info->charactor_file_descriptor, VIDIOC_QBUF, &video_buffer)==-1) return EXIT_FAILURE;
-		return EXIT_SUCCESS;
-	}
+int process_next_frame(
+    const CameraInfo* const camera_info,
+    const std::function<void(const FrameBuffer* const)>& processer)
+{
+    if (!camera_info || !camera_info->charactor_file_descriptor || !processer) {
+        return EXIT_FAILURE;
+    }
+
+    auto* camera = static_cast<NativeCamera*>(
+        camera_info->charactor_file_descriptor);
+
+    // 元のmain.cppはprocess_next_frameを一度だけ呼ぶため、
+    // ここで継続的にフレームを取得して同じコールバックへ渡す。
+    while (true) {
+        DWORD flags = 0;
+        LONGLONG timestamp = 0;
+        ComPtr<IMFSample> sample;
+        HRESULT hr = camera->reader->ReadSample(
+            MF_SOURCE_READER_FIRST_VIDEO_STREAM,
+            0, nullptr, &flags, &timestamp, &sample);
+        if (FAILED(hr)) {
+            return EXIT_FAILURE;
+        }
+        if (flags & MF_SOURCE_READERF_ENDOFSTREAM) {
+            return EXIT_SUCCESS;
+        }
+        if (!sample) {
+            continue;
+        }
+
+        ComPtr<IMFMediaBuffer> buffer;
+        if (FAILED(sample->ConvertToContiguousBuffer(&buffer))) {
+            continue;
+        }
+
+        BYTE* source_data = nullptr;
+        DWORD max_length = 0;
+        DWORD current_length = 0;
+        if (FAILED(buffer->Lock(
+                &source_data, &max_length, &current_length))) {
+            continue;
+        }
+
+        const std::size_t row_stride =
+            static_cast<std::size_t>(std::abs(camera->stride));
+        const std::size_t required = row_stride * camera->height;
+        if (current_length < required) {
+            buffer->Unlock();
+            continue;
+        }
+
+        for (UINT32 y = 0; y < camera->height; ++y) {
+            const UINT32 source_y = camera->stride >= 0
+                ? y
+                : camera->height - 1 - y;
+            const auto* source_row = source_data +
+                static_cast<std::size_t>(source_y) * row_stride;
+            auto* destination_row = camera->yuyv.data() +
+                static_cast<std::size_t>(y) * camera->width * 2;
+
+            for (UINT32 x = 0; x < camera->width; ++x) {
+                // YUY2のYをそのまま保存し、U/V位置には128を入れる。
+                // main.cppのImageViewは2バイト間隔でYだけ読む。
+                destination_row[x * 2] = source_row[x * 2];
+                destination_row[x * 2 + 1] = 128;
+            }
+        }
+        buffer->Unlock();
+
+        const FrameBuffer frame_buffer{
+            ZXing::ImageFormat::Lum,
+            camera->width,
+            camera->height,
+            camera->yuyv.data()};
+        processer(&frame_buffer);
+    }
 }
