@@ -1,8 +1,14 @@
-#include <chrono>
-#include <iostream>
+#include "BarcodeFormat.h"
+#include "ReaderOptions.h"
+#include "Result.h"
+#include "camera_handler.hpp"
 #include <ZXing/ReadBarcode.h>
 #include <ZXing/ImageView.h>
-#include "token_monitor.hpp"
+#include <cstddef>
+#include <cstdlib>
+#include <iostream>
+#include <ostream>
+#include <fstream>
 
 // in windows
 // # setup
@@ -20,13 +26,39 @@
 // usbipd detach --busid 1-3; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --busid 1-3"';
 
 int main(){
-	std::chrono::seconds token[3];
-	token[0] = std::chrono::seconds(15);
-	token[1] = std::chrono::seconds(10);
-	token[2] = std::chrono::seconds(5);
-	display_statuses(token, 3, &std::cout);
+	const CameraInfo camera_info = open_camera(0);
+	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
+    const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
 
-	return 1;
+	size_t frame_index = 0;
+	process_next_frame(&camera_info, [options, &frame_index](const FrameBuffer *const frame_buffer){
+		char filename[64];
+		std::snprintf(filename, sizeof(filename), "frame_%03zu.yuyv", frame_index++);
+		
+		std::ofstream file(filename, std::ios::binary);
+		if(file) {
+			// YUYVの総バイト数は (幅 × 高さ × 2バイト)
+			const size_t total_bytes = frame_buffer->width * frame_buffer->height * 2;
+			file.write(reinterpret_cast<const char*>(frame_buffer->data), total_bytes);
+		}
+
+		constexpr std::size_t YUYV_PIXEL_BYTES = 2, OFFSET_TO_NEXT_LUMINANCE = 2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
+		ZXing::ImageView image_view(
+			frame_buffer->data,
+			frame_buffer->width,
+			frame_buffer->height,
+			frame_buffer->format,
+			frame_buffer->width * YUYV_PIXEL_BYTES,
+			OFFSET_TO_NEXT_LUMINANCE);
+		const ZXing::Results results = ZXing::ReadBarcodes(image_view, options);
+		if(results.empty()) std::cout << "empty";
+		for(const ZXing::Result r : results)
+			std::cout << r.text() << '\n';
+		std::cout.flush();
+	});
+
+	close_camera(&camera_info);
+	return 0;
 }
 
 // int main() {
