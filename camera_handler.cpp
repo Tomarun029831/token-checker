@@ -126,7 +126,7 @@ int close_camera(const CameraInfo* const camera_info) {
 int process_next_frame(const CameraInfo* const camera_info, const std::function<void(const FrameBuffer *const)>& processer) {
 	if (camera_info==nullptr || camera_info->charactor_file_descriptor==nullptr || processer==nullptr) return EXIT_FAILURE;
 
-	NativeCamera *const camera = static_cast<NativeCamera*>(camera_info->charactor_file_descriptor);
+	const NativeCamera *const camera = static_cast<NativeCamera*>(camera_info->charactor_file_descriptor);
 	while (true) {
 		DWORD flags = 0;
 		winrt::com_ptr<IMFSample> sample;
@@ -138,10 +138,8 @@ int process_next_frame(const CameraInfo* const camera_info, const std::function<
 										  nullptr,
 										  sample.put());
 		if (FAILED(hr)) return EXIT_FAILURE;
-		if (flags & MF_SOURCE_READERF_ENDOFSTREAM) return EXIT_SUCCESS;	// https://learn.microsoft.com/ja-jp/windows/win32/api/mfreadwrite/ne-mfreadwrite-mf_source_reader_flag
-																		// MF_SOURCE_READERF_ENDOFSTREAM: source reader reachs end of stream
-		if (sample == nullptr) continue;
-
+		if ((sample == nullptr) || (flags & MF_SOURCE_READERF_ENDOFSTREAM)) continue;	// https://learn.microsoft.com/ja-jp/windows/win32/api/mfreadwrite/ne-mfreadwrite-mf_source_reader_flag
+																						// MF_SOURCE_READERF_ENDOFSTREAM: source reader reachs end of stream
 		winrt::com_ptr<IMFMediaBuffer> buffer;
 		if (FAILED(sample->ConvertToContiguousBuffer(buffer.put()))) continue; // https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfsample-converttocontiguousbuffer
 	
