@@ -29,9 +29,9 @@ int main(){
 			frame_buffer->width * YUYV_PIXEL_BYTES,
 			OFFSET_TO_NEXT_LUMINANCE);
 		const ZXing::Results results = ZXing::ReadBarcodes(image_view, options);
-		if(results.empty()) std::cout << "empty";
-		for(const ZXing::Result r : results)
-			std::cout << r.text() << '\n';
+		if(results.empty()) return;
+
+		std::cout << "index=" << results.size() << '\n';
 		std::cout.flush();
 	});
 

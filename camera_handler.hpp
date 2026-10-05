@@ -4,41 +4,39 @@
 #include <functional>
 #include <ZXing/ImageView.h>
 
+struct FrameBuffer{
+	const ZXing::ImageFormat format;
+	const size_t width, height;
+	const uint8_t *data;
+};
+inline constexpr FrameBuffer INVALID_FRAME_BUFFER = {ZXing::ImageFormat::None, 0, 0, NULL};
+
 struct Buffer {
-    void* start = nullptr;
-    std::size_t length = 0;
+	void *start;
+	std::size_t length;
 };
 
-struct FrameBuffer {
-    ZXing::ImageFormat format;
-    std::size_t width;
-    std::size_t height;
-    const std::uint8_t* data;
-};
+// struct CameraInfo{
+// 	const int charactor_file_descriptor;
+// 	Buffer *const buffers;
+// 	const std::size_t max_num_buffers, width, height;
+// 	inline bool operator==(const CameraInfo& rhs) const { return this->charactor_file_descriptor==rhs.charactor_file_descriptor; }
+// };
+// inline constexpr CameraInfo INVALID_CAMERA_INFO = {-1, NULL, 0};
 
 struct CameraInfo {
-    // Linux版のcharactor_file_descriptorに相当する位置を保つための不透明ハンドル。
-    // Windows版では実体をNativeCamera*として使用する。
     void* charactor_file_descriptor = nullptr;
     Buffer* buffers = nullptr;
     std::size_t max_num_buffers = 0;
     std::size_t width = 0;
     std::size_t height = 0;
 
-    bool operator==(const CameraInfo& other) const
-    {
-        return charactor_file_descriptor == other.charactor_file_descriptor;
-    }
-    bool operator!=(const CameraInfo& other) const
-    {
-        return !(*this == other);
-    }
+    bool operator==(const CameraInfo& other) const { return charactor_file_descriptor == other.charactor_file_descriptor; }
+    bool operator!=(const CameraInfo& other) const { return !(*this == other); }
 };
+inline constexpr CameraInfo INVALID_CAMERA_INFO = {nullptr, nullptr, 0, 0, 0};
 
-inline const CameraInfo INVALID_CAMERA_INFO{};
+CameraInfo open_camera(const size_t video_id);
+int close_camera(const CameraInfo *const camera_info);
 
-CameraInfo open_camera(std::size_t video_id);
-int close_camera(const CameraInfo* camera_info);
-int process_next_frame(
-    const CameraInfo* camera_info,
-    const std::function<void(const FrameBuffer* const)>& processer);
+int process_next_frame(const CameraInfo *const camera_info, const std::function<void(const FrameBuffer *const)> &processer);

@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(token-checker LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -25,6 +25,7 @@ target_link_libraries(token-checker PRIVATE
     mfreadwrite
     mfuuid
     ole32
+	propsys
 )
 
 target_compile_definitions(token-checker PRIVATE
