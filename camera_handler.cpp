@@ -1,19 +1,14 @@
-#include "camera_handler.hpp"
-#include "ImageView.h"
-#include <bits/types/struct_timeval.h>
-#include <cerrno>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <sys/select.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <cstddef>
-#include <linux/videodev2.h>
+#include <cstring>
+#include "camera_handler.hpp"
+#include <ZXing/ImageView.h>
+#include <unistd.h>
+#include <cerrno>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <linux/videodev2.h>
 
 static int xioctl(int fd, unsigned long request, void *argp){
 	int r;

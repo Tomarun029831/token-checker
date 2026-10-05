@@ -1,8 +1,8 @@
 #pragma once
-#include "ImageView.h"
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <ZXing/ImageView.h>
 
 struct FrameBuffer{
 	const ZXing::ImageFormat format;
