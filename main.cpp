@@ -16,10 +16,9 @@
 int main(){
 	const CameraInfo camera_info = open_camera(0);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
-    const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
 
-	size_t frame_index = 0;
-	process_next_frame(&camera_info, [options, &frame_index](const FrameBuffer *const frame_buffer){
+    const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
+	process_next_frame(&camera_info, [options](const FrameBuffer *const frame_buffer){
 		constexpr std::size_t YUYV_PIXEL_BYTES = 2, OFFSET_TO_NEXT_LUMINANCE = 2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
 		ZXing::ImageView image_view(
 			frame_buffer->data,
