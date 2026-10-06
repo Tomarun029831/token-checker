@@ -1,5 +1,5 @@
 -std=c++20
 -I.
--IC:/Users/humti/Documents/shikosai/token-checker/build/vcpkg_installed/x64-windows/include
+-I./build/vcpkg_installed/x64-windows/include
 -DWIN32_LEAN_AND_MEAN
 -DNOMINMAX
