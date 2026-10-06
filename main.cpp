@@ -14,10 +14,10 @@
 // .\build\Release\token-checker.exe
 //
 // # memo
-// device name: C270 HD WEBCAM
+// device name: Logi C270 HD WebCam
 
 int main(){
-	const CameraInfo camera_info = open_camera(L"C270 HD WEBCAM");
+	const CameraInfo camera_info = open_camera(L"Logi C270 HD WebCam");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
@@ -33,17 +33,8 @@ int main(){
 				OFFSET_TO_NEXT_LUMINANCE);
 			const ZXing::Results results = ZXing::ReadBarcodes(image_view, options);
 			if(results.empty()) return;
-			// 23 |       *                                
-			// 22 | *                       * * *       * *
-			// 21 |   *           * *   * *       *        
-			// 20 |     *       *                   * *    
-			// 19 |         * *                            
-			// 18 |                   *                    
-			//    +----------------------------------------
-			//      0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 (count of iteraton of this loop)
-			std::cout << "amount=" << results.size() << '\n';
-			for(const ZXing::Result r : results)
-				std::cout << "text=" << r.text() << '\n';
+			std::cout << "\x1b[H\x1b[Jamount=" << results.size() << '\n';
+			for(const ZXing::Result r : results) std::cout << "text=" << r.text() << '\n';
 			std::cout.flush();
 		});
 

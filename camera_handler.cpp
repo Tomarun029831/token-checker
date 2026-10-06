@@ -2,7 +2,6 @@
 #include <combaseapi.h>
 #include <cstdlib>
 #include "camera_handler.hpp"
-#include <iostream>
 #include <mfobjects.h>
 #include <string>
 #include <windows.h>
