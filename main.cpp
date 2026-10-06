@@ -16,7 +16,7 @@
 // in wsl or linux
 // sudo apt install libzxing-dev
 // # build
-// g++ *.cpp -o token-checker $(pkg-config --cflags --libs zxing); ./token-checker
+// g++ -std=c++20 *.cpp -o token-checker $(pkg-config --cflags --libs zxing); ./token-checker
 //
 // in windows
 // # reset
@@ -27,7 +27,7 @@
 // device name: C270 HD WEBCAM
 
 int main(){
-	const CameraInfo camera_info = open_camera(L"C270 HD WEBCAM");
+	const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
