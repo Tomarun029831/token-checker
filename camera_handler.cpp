@@ -1,3 +1,4 @@
+#include <codecvt>
 #include <cstddef>
 #include <cstring>
 #include "camera_handler.hpp"
@@ -37,9 +38,10 @@ CameraInfo open_camera(const std::wstring video_device_name){
 		std::ifstream file_stream(name_file);
 		std::string device_name;
 		if(std::getline(file_stream, device_name)){
-			std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
-			const std::wstring converted_str = converter.from_bytes(device_name);
-			if(converted_str==video_device_name) break;
+			std::cout << "device_name=" << device_name << std::endl;
+			// std::wstring_convert<std::codecvt_utf8<class Elem><wchar_t>> converter;
+			// const std::wstring converted_str = converter.from_bytes(device_name);
+			// if(converted_str==video_device_name) break;
 		}
 	}
 
