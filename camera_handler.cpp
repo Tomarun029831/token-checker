@@ -1,7 +1,12 @@
+#include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include "camera_handler.hpp"
 #include <ZXing/ImageView.h>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <string>
 #include <unistd.h>
 #include <cerrno>
 #include <fcntl.h>
@@ -9,6 +14,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <linux/videodev2.h>
+#include <vector>
 
 static int xioctl(int fd, unsigned long request, void *argp){
 	int r;
@@ -20,11 +26,26 @@ static int xioctl(int fd, unsigned long request, void *argp){
 }
 
 // https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/capture.c.html
-CameraInfo open_camera(const size_t video_id){
+CameraInfo open_camera(const std::string video_device_name){
+	// searh the specifed charactor device
+	constexpr char v4l2_dir[] = "/sys/class/video4linux";
+	if(std::filesystem::exists(v4l2_dir)==false) return INVALID_CAMERA_INFO;
+
+	std::filesystem::path name_file;
+	std::vector<std::filesystem::directory_entry> all_entries;
+	for(const std::filesystem::directory_entry& entry : std::filesystem::directory_iterator(v4l2_dir)) all_entries.push_back(entry);
+	std::sort(all_entries.begin(), all_entries.end());
+	for(const std::filesystem::directory_entry& entry : all_entries){
+		if(entry.is_directory()==false) continue;
+		name_file = entry.path() / "name"; // /sys/class/video4linux/video*/name
+		std::ifstream file_stream(name_file);
+		std::string device_name;
+		if(std::getline(file_stream, device_name))
+			if(device_name==video_device_name)
+				break;
+	}
+	const char *const dev_name = std::string("/dev/").append(name_file.generic_string().substr(sizeof(v4l2_dir), 6)).c_str();
 	// open the charactor device
-	const char dev_name[] = {
-		'/','d','e','v',
-		'/','v','i','d','e','o', static_cast<char>('0'+(video_id/10==0?video_id%10:video_id/10)), static_cast<char>((video_id/10==0?'\0':('0'+video_id%10))),'\0'};
 	struct stat st;
 	if(stat(dev_name, &st)==-1 || !S_ISCHR(st.st_mode)) return INVALID_CAMERA_INFO; // https://ja.manpages.org/stat/2
 	const int fd = open(dev_name, O_RDWR|O_NONBLOCK); // https://ja.manpages.org/open/2

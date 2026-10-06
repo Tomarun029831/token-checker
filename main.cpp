@@ -8,20 +8,26 @@
 // in windows
 // # setup
 // winget install usbipd pwsh
-// /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --busid 1-3"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --busid 1-3'
 //
 // in wsl
 // # setup
+// /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 0408:30c1"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 0408:30c1'
+// /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 046d:0825"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 046d:0825'
+// in wsl or linux
 // sudo apt install libzxing-dev
 // # build
-// g++ *.cpp -o token-checker $(pkg-config --cflags --libs zxing); ./token-checker
+// g++ -std=c++20 *.cpp -o token-checker $(pkg-config --cflags --libs zxing); ./token-checker
 //
 // in windows
 // # reset
-// usbipd detach --busid 1-3; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --busid 1-3"';
+// usbipd detach --hardware-id 0408:30c1; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 0408:30c1"';
+// usbipd detach --hardware-id 046d:0825; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 046d:0825"';
+//
+// # memo
+// device name: C270 HD WEBCAM
 
 int main(){
-	const CameraInfo camera_info = open_camera(0);
+	const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
