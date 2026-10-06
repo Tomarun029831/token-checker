@@ -1,9 +1,14 @@
 #include <basetsd.h>
+#include <combaseapi.h>
 #include <cstdlib>
 #include "camera_handler.hpp"
+#include <iostream>
+#include <mfobjects.h>
+#include <string>
 #include <windows.h>
 #include <mfapi.h>
 #include <minwindef.h>
+#include <winnt.h>
 #include <winrt/base.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
@@ -21,7 +26,7 @@ struct NativeCamera {
 	UINT32 stride_bytes_to_next_line = 0;
 };
 
-CameraInfo open_camera(const std::size_t video_id) {
+CameraInfo open_camera(const std::wstring& video_device_name) {
 	// init com library, set concurrency of thread and create and bind new apartment
 	// https://learn.microsoft.com/ja-jp/windows/win32/api/combaseapi/nf-combaseapi-coinitializeex																
 	HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED); 
@@ -47,9 +52,20 @@ CameraInfo open_camera(const std::size_t video_id) {
 																														// Associates a GUID value with a key
         if (FAILED(hr)) { delete camera; MFShutdown(); CoUninitialize(); return INVALID_CAMERA_INFO; }
         UINT32 count = 0;
-        IMFActivate** devices = nullptr;
+        IMFActivate **devices = nullptr;
         hr = MFEnumDeviceSources(attributes.get(), &devices, &count);	// https://learn.microsoft.com/ja-jp/windows/win32/api/mfidl/nf-mfidl-mfenumdevicesources
 																		// should free all pointers in array and array of variable(devices)
+		UINT32 video_id=0;
+		for(;video_id<count; ++video_id){
+			// https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfattributes-getallocatedstring
+			// https://learn.microsoft.com/ja-jp/windows/win32/medfound/mf-devsource-attribute-friendly-name
+			LPWSTR dev_name = nullptr;
+			UINT32 dev_name_len = 0;
+			devices[video_id]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &dev_name, &dev_name_len);
+			if(dev_name==nullptr) continue;
+			if(dev_name==video_device_name) break;
+		}
+
         if (FAILED(hr)) { delete camera; MFShutdown(); CoUninitialize(); return INVALID_CAMERA_INFO; }
 		// get pointer to specified interface
         struct DeviceGuard {
@@ -91,8 +107,8 @@ CameraInfo open_camera(const std::size_t video_id) {
 	// set reader to stride
     UINT32 stride_bytes_to_next_line = 0;
 	constexpr std::size_t YUYV_PIXEL_BYTES = 2;
-    if (SUCCEEDED(hr) && SUCCEEDED(actual_type->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride_bytes_to_next_line))) // https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfattributes-getuint32
-																									// MF_MT_DEFAULT_STRIDE(In Bytes): https://learn.microsoft.com/ja-jp/windows/win32/medfound/mf-mt-default-stride-attribute
+    if (SUCCEEDED(hr) && SUCCEEDED(actual_type->GetUINT32(MF_MT_DEFAULT_STRIDE, &stride_bytes_to_next_line)))	// https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfattributes-getuint32
+																												// MF_MT_DEFAULT_STRIDE(In Bytes): https://learn.microsoft.com/ja-jp/windows/win32/medfound/mf-mt-default-stride-attribute
 		camera->stride_bytes_to_next_line = stride_bytes_to_next_line;
     else camera->stride_bytes_to_next_line = actual_width * YUYV_PIXEL_BYTES;
 

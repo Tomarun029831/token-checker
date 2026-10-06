@@ -36,7 +36,7 @@ struct CameraInfo {
 };
 inline constexpr CameraInfo INVALID_CAMERA_INFO = {nullptr, nullptr, 0, 0, 0};
 
-CameraInfo open_camera(const size_t video_id);
+CameraInfo open_camera(const std::wstring& video_device_name);
 int close_camera(const CameraInfo *const camera_info);
 
 int process_next_frame(const CameraInfo *const camera_info, const std::function<void(const FrameBuffer *const)> &processer);
