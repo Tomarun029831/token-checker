@@ -25,8 +25,8 @@ struct Buffer {
 // inline constexpr CameraInfo INVALID_CAMERA_INFO = {-1, NULL, 0};
 
 struct CameraInfo {
-    void* charactor_file_descriptor = nullptr;
-    Buffer* buffers = nullptr;
+    void *charactor_file_descriptor = nullptr;
+    Buffer *buffers = nullptr;
     std::size_t max_num_buffers = 0;
     std::size_t width = 0;
     std::size_t height = 0;

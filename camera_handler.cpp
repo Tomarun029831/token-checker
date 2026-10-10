@@ -1,17 +1,16 @@
+#include <cstdlib>
+#include <string>
+#include "camera_handler.hpp"
+
 #include <basetsd.h>
 #include <combaseapi.h>
-#include <cstdlib>
-#include "camera_handler.hpp"
 #include <mfobjects.h>
-#include <string>
-#include <windows.h>
 #include <mfapi.h>
 #include <minwindef.h>
 #include <winnt.h>
 #include <winrt/base.h>
 #include <mfidl.h>
 #include <mfreadwrite.h>
-#include <mferror.h>
 #include <winerror.h>
 
 constexpr UINT32 WIDTH = 640;
@@ -40,7 +39,7 @@ CameraInfo open_camera(const std::wstring& video_device_name) {
 		return INVALID_CAMERA_INFO;
 	}
 
-    NativeCamera* const camera = new NativeCamera();
+    NativeCamera *const camera = new NativeCamera();
     {
 		// search video devices
         winrt::com_ptr<IMFAttributes> attributes;		// https://learn.microsoft.com/ja-jp/uwp/cpp-ref-for-winrt/com-ptr
@@ -125,7 +124,7 @@ CameraInfo open_camera(const std::wstring& video_device_name) {
     return {camera, nullptr, 0, camera->width, camera->height};
 }
 
-int close_camera(const CameraInfo* const camera_info) {
+int close_camera(const CameraInfo *const camera_info) {
 	if (camera_info==nullptr || camera_info->charactor_file_descriptor==nullptr) return EXIT_FAILURE;
 	NativeCamera *const camera = static_cast<NativeCamera *const>(camera_info->charactor_file_descriptor);
 	camera->reader = nullptr;
@@ -138,10 +137,10 @@ int close_camera(const CameraInfo* const camera_info) {
 	return EXIT_SUCCESS;
 }
 
-int process_next_frame(const CameraInfo* const camera_info, const std::function<void(const FrameBuffer *const)>& processer) {
+int process_next_frame(const CameraInfo *const camera_info, const std::function<void(const FrameBuffer *const)>& processer) {
 	if (camera_info==nullptr || camera_info->charactor_file_descriptor==nullptr || processer==nullptr) return EXIT_FAILURE;
 
-	const NativeCamera *const camera = static_cast<NativeCamera*>(camera_info->charactor_file_descriptor);
+	const NativeCamera *const camera = static_cast<NativeCamera *>(camera_info->charactor_file_descriptor);
 	while (true) {
 		DWORD flags = 0;
 		winrt::com_ptr<IMFSample> sample;
@@ -158,7 +157,7 @@ int process_next_frame(const CameraInfo* const camera_info, const std::function<
 		winrt::com_ptr<IMFMediaBuffer> buffer;
 		if (FAILED(sample->ConvertToContiguousBuffer(buffer.put()))) continue; // https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfsample-converttocontiguousbuffer
 	
-		BYTE* source_data = nullptr;
+		BYTE *source_data = nullptr;
 		DWORD max_length = 0, current_length = 0;
 		if (FAILED(buffer->Lock(&source_data, &max_length, &current_length))) continue; // https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfmediabuffer-lock
 		
