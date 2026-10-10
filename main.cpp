@@ -27,13 +27,13 @@
 // device name: C270 HD WEBCAM
 
 int main(){
-	const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
+	const CameraInfo camera_info=open_camera("C270 HD WEBCAM");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
-    const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
+    const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
-		r = process_next_frame(&camera_info, [options](const FrameBuffer *const frame_buffer){
-			constexpr std::size_t YUYV_PIXEL_BYTES = 2, OFFSET_TO_NEXT_LUMINANCE = 2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
+		r=process_next_frame(&camera_info, [options](const FrameBuffer *const frame_buffer){
+			constexpr std::size_t YUYV_PIXEL_BYTES=2, OFFSET_TO_NEXT_LUMINANCE=2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
 			const ZXing::ImageView image_view(
 				frame_buffer->data,
 				frame_buffer->width,
@@ -41,7 +41,7 @@ int main(){
 				frame_buffer->format,
 				frame_buffer->width * YUYV_PIXEL_BYTES,
 				OFFSET_TO_NEXT_LUMINANCE);
-			const ZXing::Results results = ZXing::ReadBarcodes(image_view, options);
+			const ZXing::Results results=ZXing::ReadBarcodes(image_view, options);
 			if(results.empty()) return;
 			std::cout << "amount=" << results.size() << '\n';
 			for(const ZXing::Result r : results)

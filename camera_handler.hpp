@@ -10,7 +10,7 @@ struct FrameBuffer{
 	const size_t width, height;
 	const uint8_t *data;
 };
-inline constexpr FrameBuffer INVALID_FRAME_BUFFER = {ZXing::ImageFormat::None, 0, 0, NULL};
+inline constexpr FrameBuffer INVALID_FRAME_BUFFER={ZXing::ImageFormat::None, 0, 0, NULL};
 
 struct Buffer {
 	void *start;
@@ -23,7 +23,7 @@ struct CameraInfo{
 	const std::size_t max_num_buffers, width, height;
 	inline bool operator==(const CameraInfo& rhs) const { return this->charactor_file_descriptor==rhs.charactor_file_descriptor; }
 };
-inline constexpr CameraInfo INVALID_CAMERA_INFO = {-1, NULL, 0};
+inline constexpr CameraInfo INVALID_CAMERA_INFO={-1, NULL, 0};
 
 
 CameraInfo open_camera(const std::string video_device_name);
