@@ -1,4 +1,5 @@
 #include <cstdlib>
+#include <cwchar>
 #include <string>
 #include "camera_handler.hpp"
 
@@ -7,6 +8,8 @@
 #include <mfobjects.h>
 #include <mfapi.h>
 #include <minwindef.h>
+#include <stringapiset.h>
+#include <winnls.h>
 #include <winnt.h>
 #include <winrt/base.h>
 #include <mfidl.h>
@@ -24,7 +27,15 @@ struct NativeCamera {
 	UINT32 stride_bytes_to_next_line = 0;
 };
 
-CameraInfo open_camera(const std::wstring& video_device_name) {
+inline static std::wstring utf8_to_wide(const std::string& utf8){
+	const int wchars_num = MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, nullptr, 0); // https://learn.microsoft.com/ja-jp/windows/win32/api/stringapiset/nf-stringapiset-multibytetowidechar
+	if(wchars_num==0) return L"";
+	std::wstring wstr(wchars_num, L'\0');
+	MultiByteToWideChar(CP_UTF8, 0, utf8.c_str(), -1, wstr.data(), wchars_num);
+	return wstr;
+}
+
+CameraInfo open_camera(const std::string& video_device_name) {
 	// init com library, set concurrency of thread and create and bind new apartment
 	// https://learn.microsoft.com/ja-jp/windows/win32/api/combaseapi/nf-combaseapi-coinitializeex																
 	HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED); 
@@ -61,7 +72,7 @@ CameraInfo open_camera(const std::wstring& video_device_name) {
 			UINT32 dev_name_len = 0;
 			devices[video_id]->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &dev_name, &dev_name_len);
 			if(dev_name==nullptr) continue;
-			if(dev_name==video_device_name) break;
+			if(wcscmp(dev_name, utf8_to_wide(video_device_name).c_str())==0) break;
 		}
 
         if (FAILED(hr)) { delete camera; MFShutdown(); CoUninitialize(); return INVALID_CAMERA_INFO; }

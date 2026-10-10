@@ -18,7 +18,7 @@
 
 int main(){
 	// const CameraInfo camera_info = open_camera(L"Logi C270 HD WebCam");
-	const CameraInfo camera_info = open_camera(L"Integrated Camera");
+	const CameraInfo camera_info = open_camera("Integrated Camera");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options = ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
