@@ -11,6 +11,7 @@ find_package(ZXing CONFIG REQUIRED)
 add_executable(token-checker
     main.cpp
     camera_handler.cpp
+	status_display.cpp
 )
 
 target_include_directories(token-checker PRIVATE
