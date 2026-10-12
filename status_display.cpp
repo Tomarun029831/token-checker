@@ -1,5 +1,6 @@
 #include "status_display.hpp"
 #include <bitset>
+#include <climits>
 #include <cstdint>
 #include <iostream>
 #include <string_view>

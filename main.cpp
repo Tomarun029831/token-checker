@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <ZXing/ReadBarcode.h>
+#include "ZXing/Barcode.h"
 #include "camera_handler.hpp"
 #include "status_display.hpp"
 
@@ -42,7 +43,7 @@ int main(){
 			const ZXing::ImageView image_view(
 				frame_buffer->data, frame_buffer->width, frame_buffer->height,
 				frame_buffer->format, frame_buffer->width * YUYV_PIXEL_BYTES, OFFSET_BYTES_TO_NEXT_LUMINANCE);
-			const ZXing::Barcodes results=ZXing::ReadBarcodes(image_view, options);
+			const ZXing::Results results=ZXing::ReadBarcodes(image_view, options);
 
 			std::cout << "amount=" << results.size() << '\n';
 			display_group_timer(group_timer);
