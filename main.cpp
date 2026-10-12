@@ -26,11 +26,11 @@
 // usbipd detach --hardware-id 046d:0825; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 046d:0825"';
 //
 // # memo
-// device name: Logi C270 HD WebCam, Integrated Camera
+// device name: C270 HD WEBCAM, Integrated Camera: Integrated C
 
 int main(){
-	// const CameraInfo camera_info = open_camera(L"Logi C270 HD WebCam");
-	const CameraInfo camera_info=open_camera("Integrated Camera");
+	// const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
+	const CameraInfo camera_info=open_camera("Integrated Camera: Integrated C");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
@@ -52,7 +52,7 @@ int main(){
 			const ZXing::ImageView image_view(
 				frame_buffer->data, frame_buffer->width, frame_buffer->height,
 				frame_buffer->format, frame_buffer->width * YUYV_PIXEL_BYTES, OFFSET_BYTES_TO_NEXT_LUMINANCE);
-			const ZXing::Barcodes results=ZXing::ReadBarcodes(image_view, options);
+			const ZXing::Results results=ZXing::ReadBarcodes(image_view, options);
 
 			std::cout << "amount=" << results.size() << '\n';
 			display_group_timer(group_timer);
