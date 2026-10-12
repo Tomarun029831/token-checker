@@ -59,7 +59,8 @@ int main(){
 			checker_status|=UINT64_C(0x0000'0001'0001'0001)*(checker_status>>3*16);
 			// 3. add left tokens to last_group
 			checker_status=checker_status&UINT64_C(0xffff'0000'ffff'ffff) |
-				~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)&UINT64_C(0x0000'ffff'0000'0000); // 2. remove duplicate tokens of middle_group and first_group from detected_bits
+				~(~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)^static_cast<const std::uint64_t>(token_status)<<16)&UINT64_C(0x0000'ffff'0000'0000);	// 2. remove duplicate tokens of middle_group, first_group and waiting_bits from detected_bits
+																																										// HACK: dirty code
 			// 4. update each timer
 			if(std::chrono::steady_clock::now()-last>=std::chrono::seconds(1)){
 				if(group_timer==UINT16_C(0xa'5'0)){
