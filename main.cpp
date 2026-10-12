@@ -48,6 +48,7 @@ int main(){
 			std::cout << "amount=" << results.size() << '\n';
 			display_group_timer(group_timer);
 			display_checker_status(checker_status);
+			display_token_status(token_status);
 			// 0. update detected_bits
 			checker_status=checker_status&UINT64_C(0x0000'ffff'ffff'ffff) | static_cast<const std::uint64_t>(token_status)<<3*16; // reset detected_bits and mask detected_bits with managing_bits
 			for(const ZXing::Result& r : results){
@@ -57,8 +58,8 @@ int main(){
 			// 1. remove detected token from each group
 			checker_status|=UINT64_C(0x0000'0001'0001'0001)*(checker_status>>3*16);
 			// 3. add left tokens to last_group
-			checker_status&=UINT64_C(0xffff'0000'ffff'ffff)|
-				~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16); // 2. remove duplicate tokens of middle_group and first_group from detected_bits
+			checker_status=checker_status&UINT64_C(0xffff'0000'ffff'ffff) |
+				~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)&UINT64_C(0x0000'ffff'0000'0000); // 2. remove duplicate tokens of middle_group and first_group from detected_bits
 			// 4. update each timer
 			if(std::chrono::steady_clock::now()-last>=std::chrono::seconds(1)){
 				if(group_timer==UINT16_C(0xa'5'0)){
@@ -73,13 +74,14 @@ int main(){
 
 					// 6. add tokens in first_group to waiting_bits
 					token_status&=checker_status<<16|UINT32_C(0x0000'ffff);
+					// 7. slide first_group from checker_status
+					checker_status=checker_status&UINT64_C(0xffff'0000'0000'0000) | checker_status>>16;
 				}
 				group_timer-=UINT16_C(0x111);
 				last=std::chrono::steady_clock::now();
 			}
-			// 7. find out tokens that should be sent to api
+			// 8. find out tokens that should be sent to api
 			const std::uint16_t end_bits=~(checker_status>>3*16)|token_status>>16;
-			std::cout << "end_bits=" <<  std::bitset<16>(end_bits) << '\n';
 			// for(std::uint_fast8_t i=0; i<16; ++i){
 			// 	if(end_bits>>i&1) continue;
 			// 	// TODO: create payload to notify end of game
@@ -88,7 +90,7 @@ int main(){
 			// // TODO: send https request
 			// std::cout.flush();
 
-			// 8. remove sent tokens from waiting_bits
+			// 9. remove sent tokens from waiting_bits
 			token_status|=static_cast<const std::uint32_t>(~end_bits)<<16;
 
 			std::cout.flush();
