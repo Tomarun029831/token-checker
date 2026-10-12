@@ -1,4 +1,3 @@
-#include <bitset>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -69,13 +68,13 @@ int main(){
 					for(std::uint_fast8_t i=0; i<16; ++i){
 						if(checker_status>>i&1) continue;
 						// TODO: create payload to notify begin of game
-						std::cout << "begin index=" << i << '\n';
+						std::cout << "begin index=" << static_cast<int>(i) << '\n';
 					}
 					// TODO: send https request
 
 					// 6. add tokens in first_group to waiting_bits
 					token_status&=checker_status<<16|UINT32_C(0x0000'ffff);
-					// 7. slide first_group from checker_status
+					// 7. slide checker_status to drop out first_group from checker_status
 					checker_status=checker_status&UINT64_C(0xffff'0000'0000'0000) | checker_status>>16;
 				}
 				group_timer-=UINT16_C(0x111);
@@ -83,13 +82,13 @@ int main(){
 			}
 			// 8. find out tokens that should be sent to api
 			const std::uint16_t end_bits=~(checker_status>>3*16)|token_status>>16;
-			// for(std::uint_fast8_t i=0; i<16; ++i){
-			// 	if(end_bits>>i&1) continue;
-			// 	// TODO: create payload to notify end of game
-			// 	std::cout << "end index=" << i << '\n';
-			// }
-			// // TODO: send https request
-			// std::cout.flush();
+			for(std::uint_fast8_t i=0; i<16; ++i){
+				if(end_bits>>i&1) continue;
+				// TODO: create payload to notify end of game
+				std::cout << "end index=" << static_cast<int>(i) << '\n';
+			}
+			// TODO: send https request
+			std::cout.flush();
 
 			// 9. remove sent tokens from waiting_bits
 			token_status|=static_cast<const std::uint32_t>(~end_bits)<<16;
