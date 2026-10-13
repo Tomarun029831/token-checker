@@ -29,8 +29,8 @@
 // device name: C270 HD WEBCAM, Integrated Camera: Integrated C
 
 int main(){
-	// const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
-	const CameraInfo camera_info=open_camera("Integrated Camera: Integrated C");
+	const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
+	// const CameraInfo camera_info=open_camera("Integrated Camera: Integrated C");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
