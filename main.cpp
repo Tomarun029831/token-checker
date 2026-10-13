@@ -38,33 +38,41 @@ int main(){
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
 		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
 			// std::cout << "\x1b[H\x1b[J";
+			display_group_timer(group_timer);
+			display_checker_status(checker_status);
+			display_token_status(token_status);
 
+			// get image of camera and find qrcodes out with library
 			constexpr std::size_t YUYV_PIXEL_BYTES=2, OFFSET_BYTES_TO_NEXT_LUMINANCE=2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
 			const ZXing::ImageView image_view(
 				frame_buffer->data, frame_buffer->width, frame_buffer->height,
 				frame_buffer->format, frame_buffer->width * YUYV_PIXEL_BYTES, OFFSET_BYTES_TO_NEXT_LUMINANCE);
 			const ZXing::Results results=ZXing::ReadBarcodes(image_view, options);
-
-			std::cout << "amount=" << results.size() << '\n';
-			display_group_timer(group_timer);
-			display_checker_status(checker_status);
-			display_token_status(token_status);
 			// 0. update detected_bits
-			checker_status=checker_status&UINT64_C(0x0000'ffff'ffff'ffff) | static_cast<const std::uint64_t>(token_status)<<3*16; // reset detected_bits and mask detected_bits with managing_bits
+			// reset detected_bits and mask detected_bits with managing_bits
+			checker_status=checker_status&0x0000'ffff'ffff'ffffULL | static_cast<std::uint64_t>(token_status)<<3*16;
 			for(const ZXing::Result& r : results){
-				const int index=std::atoi(r.text().c_str());
-				checker_status|=(static_cast<const std::uint64_t>(1)<<(3*16+index)); // set each bit at index to detected_bits
+				// index=-15 => static_cast<unsigned>(-15) == UINT32_MAX-14 < 16 (false)
+				// index=17  => static_cast<unsigned>(17) < 16 (false)
+				const unsigned index = static_cast<const unsigned>(10 * (r.bytes()[0] - '0') + (r.bytes()[1] - '0'));
+				const std::uint64_t state=index<16; // if(0>index || index>15) continue;
+				// set each bit at index to detected_bits
+				checker_status|=state<<(3*16+state*index); // https://en.algorithmica.org/hpc/pipelining/branchless/
 			}
 			// 1. remove detected token from each group
-			checker_status|=UINT64_C(0x0000'0001'0001'0001)*(checker_status>>3*16);
+			// 0001'0001'0001 * 1010 = 1010'1010'1010
+			checker_status|=0x0000'0001'0001'0001ULL*(checker_status>>3*16);
 			// 3. add left tokens to last_group
-			checker_status=checker_status&UINT64_C(0xffff'0000'ffff'ffff) |
-				~(~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)^static_cast<const std::uint64_t>(token_status)<<16)&UINT64_C(0x0000'ffff'0000'0000);	// 2. remove duplicate tokens of middle_group, first_group and waiting_bits from detected_bits
-																																										// HACK: dirty code
+			// ~(~X xor Y) = X xor Y, (X xor Y) xor Z = X xor Y xor Z  より、
+			// ~(~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)^static_cast<std::uint64_t>(token_status)<<16)
+			// = ~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16)
+			checker_status=0xffff'0000'ffff'ffffULL&checker_status |
+				0x0000'ffff'0000'0000ULL&~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16); // 2. remove duplicate tokens of middle_group, first_group and waiting_bits from detected_bits
 			// 4. update each timer
-			if(std::chrono::steady_clock::now()-last>=std::chrono::seconds(1)){
-				if(group_timer==UINT16_C(0xa'5'0)){
-					group_timer=UINT16_C(0xf'0'0)|group_timer>>4; // set 0xf to last_timer because all timers have less time later.
+			const std::chrono::time_point<std::chrono::steady_clock> now=std::chrono::steady_clock::now();
+			if(now-last>=std::chrono::seconds(1)){
+				if(group_timer==0xa'5'0){
+					group_timer=0xf'0'0|group_timer>>4; // set 0xf to last_timer because all timers have less time later.
 					// HACK: 5. send https request
 					for(std::uint_fast8_t i=0; i<16; ++i){
 						if(checker_status>>i&1) continue;
@@ -74,12 +82,12 @@ int main(){
 					// TODO: send https request
 
 					// 6. add tokens in first_group to waiting_bits
-					token_status&=checker_status<<16|UINT32_C(0x0000'ffff);
+					token_status&=checker_status<<16|0x0000'ffffU;
 					// 7. slide checker_status to drop out first_group from checker_status
-					checker_status=checker_status&UINT64_C(0xffff'0000'0000'0000) | checker_status>>16;
+					checker_status=checker_status&0xffff'0000'0000'0000ULL | checker_status>>16;
 				}
-				group_timer-=UINT16_C(0x111);
-				last=std::chrono::steady_clock::now();
+				group_timer-=0x111;
+				last=now;
 			}
 			// 8. find out tokens that should be sent to api
 			const std::uint16_t end_bits=~(checker_status>>3*16)|token_status>>16;
