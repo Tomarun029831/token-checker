@@ -18,10 +18,11 @@
 //
 // # memo
 // device name: Logi C270 HD WebCam, Integrated Camera
+// dependances: https://github.com/zxing-cpp/zxing-cpp, https://github.com/yhirose/cpp-httplib
 
 int main(){
-	// const CameraInfo camera_info = open_camera(L"Logi C270 HD WebCam");
-	const CameraInfo camera_info=open_camera("Integrated Camera");
+	const CameraInfo camera_info = open_camera("Logi C270 HD WebCam");
+	// const CameraInfo camera_info=open_camera("Integrated Camera");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
@@ -37,7 +38,7 @@ int main(){
 
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
 		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
-			// std::cout << "\x1b[H\x1b[J";
+			std::cout << "\x1b[H\x1b[J";
 			display_group_timer(group_timer);
 			display_checker_status(checker_status);
 			display_token_status(token_status);
