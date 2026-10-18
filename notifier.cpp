@@ -30,25 +30,33 @@ static std::string create_payload(const uint16_t& bits, const char *status){
 // 'bit is 0' means token is added, 'bit is 1' means token is removed
 // 8bytes: | detected_bits	|	last_group	|	middle_group	|	first_group	| (each bits is 2bytes)
 void notify_start(const uint16_t& first_group){
+	if(first_group==0xffff) return;
 	std::thread t([first_group]{
+		std::cout << "notify_start called" << "\n";
 		// create request
 		httplib::Client client(API_URL);
 		const httplib::Headers headers{{"Authorization", "Bearer " AUTH_ID}};
 		const std::string payload=create_payload(first_group, "in_use");
-		if(const httplib::Result res = client.Post(PATH_TO_BATCH, headers, payload, "application/json"))
+		if(const httplib::Result res = client.Post(PATH_TO_BATCH, headers, payload, "application/json")){
+			std::cout << "payload=" << payload << '\n';
 			std::cout << "in notify_start(): status=" << res->status << ", body=" << res->body << std::endl;
+		}
 	});
 	t.detach(); // HACK: use actor-pattern https://ja.wikipedia.org/wiki/%E3%82%A2%E3%82%AF%E3%82%BF%E3%83%BC%E3%83%A2%E3%83%87%E3%83%AB
 }
 
 void notify_end(const uint16_t& end_bits){
+	if(end_bits==0xffff) return;
 	std::thread t([end_bits]{
+		std::cout << "notify_end called" << "\n";
 		// create request
 		httplib::Client client(API_URL);
 		const httplib::Headers headers{{"Authorization", "Bearer " AUTH_ID}};
 		const std::string payload=create_payload(end_bits, "available");
-		if(const httplib::Result res = client.Post(PATH_TO_BATCH, headers, payload, "application/json"))
+		if(const httplib::Result res = client.Post(PATH_TO_BATCH, headers, payload, "application/json")){
+			std::cout << "payload=" << payload << '\n';
 			std::cout << "in notify_start(): status=" << res->status << ", body=" << res->body << std::endl;
+		}
 	});
 	t.detach(); // HACK: use actor-pattern https://ja.wikipedia.org/wiki/%E3%82%A2%E3%82%AF%E3%82%BF%E3%83%BC%E3%83%A2%E3%83%87%E3%83%AB
 }
