@@ -6,11 +6,12 @@
 #include <ZXing/ReadBarcode.h>
 #include "ZXing/Barcode.h"
 #include "camera_handler.hpp"
+#include "notifier.hpp"
 #include "status_display.hpp"
 
 // in windows
 // # setup
-// vcpkg new --application; vcpkg add port nu-book-zxing-cpp
+// vcpkg new --application; vcpkg add port nu-book-zxing-cpp cpp-httplib openssl
 // # build
 // rm -rf build; cmake --preset=default; cmake --build build --config Release
 // # run
@@ -74,14 +75,8 @@ int main(){
 			if(now-last>=std::chrono::seconds(1)){
 				if(group_timer==0xa'5'0){
 					group_timer=0xf'0'0|group_timer>>4; // set 0xf to last_timer because all timers have less time later.
-					// HACK: 5. send https request
-					for(std::uint_fast8_t i=0; i<16; ++i){
-						if(checker_status>>i&1) continue;
-						// TODO: create payload to notify begin of game
-						std::cout << "begin index=" << static_cast<int>(i) << '\n';
-					}
-					// TODO: send https request
-
+					// 5. notify tokens started
+					notify_start(static_cast<uint16_t>(checker_status));
 					// 6. add tokens in first_group to waiting_bits
 					token_status&=checker_status<<16|0x0000'ffffU;
 					// 7. slide checker_status to drop out first_group from checker_status
@@ -90,15 +85,10 @@ int main(){
 				group_timer-=0x111;
 				last=now;
 			}
-			// 8. find out tokens that should be sent to api
+			// 8. find out tokens and notify these to api
+			// 'bit is 0' means it should be sent
 			const std::uint16_t end_bits=~(checker_status>>3*16)|token_status>>16;
-			for(std::uint_fast8_t i=0; i<16; ++i){
-				if(end_bits>>i&1) continue;
-				// TODO: create payload to notify end of game
-				std::cout << "end index=" << static_cast<int>(i) << '\n';
-			}
-			// TODO: send https request
-			std::cout.flush();
+			notify_end(end_bits);
 
 			// 9. remove sent tokens from waiting_bits
 			token_status|=static_cast<const std::uint32_t>(~end_bits)<<16;
