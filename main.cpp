@@ -21,9 +21,16 @@
 // device name: Logi C270 HD WebCam, Integrated Camera
 // dependances: https://github.com/zxing-cpp/zxing-cpp, https://github.com/yhirose/cpp-httplib
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
 int main(){
-	const CameraInfo camera_info = open_camera("Logi C270 HD WebCam");
-	// const CameraInfo camera_info=open_camera("Integrated Camera");
+#ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+#endif
+	get_game_list();
+	// const CameraInfo camera_info = open_camera("Logi C270 HD WebCam");
+	const CameraInfo camera_info=open_camera("Integrated Camera");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
@@ -32,17 +39,17 @@ int main(){
 	std::uint64_t checker_status=UINT64_MAX;
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
 	// 4bytes: | waiting_bits	|	managing_bits	| (each bits is 2bytes)
-	std::uint32_t token_status=UINT32_C(0b1111111111111111'1111000000000000);
+	std::uint32_t token_status=UINT32_C(0b1111111111111111'1111111111111000);
 	// 2bytes: | reserved		|	last_timer(10 ~ 14sec)	|	middle_timer(5 ~ 9sec)	|	first_timer(0 ~ 4sec)	| (length of each bits is 4 bits)
 	std::uint16_t group_timer=UINT16_C(0xe'9'4);
 	std::chrono::time_point<std::chrono::steady_clock> last = std::chrono::steady_clock::now();
 
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
 		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
-			std::cout << "\x1b[H\x1b[J";
-			display_group_timer(group_timer);
-			display_checker_status(checker_status);
-			display_token_status(token_status);
+			// std::cout << "\x1b[H\x1b[J";
+			// display_group_timer(group_timer);
+			// display_checker_status(checker_status);
+			// display_token_status(token_status);
 
 			// get image of camera and find qrcodes out with library
 			constexpr std::size_t YUYV_PIXEL_BYTES=2, OFFSET_BYTES_TO_NEXT_LUMINANCE=2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html

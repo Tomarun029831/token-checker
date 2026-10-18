@@ -8,6 +8,14 @@
 #define CPPHTTPLIB_OPENSSL_SUPPORT
 #include <httplib.h>
 
+void get_game_list(){
+	httplib::Client client(API_URL);
+	const httplib::Headers headers{{"Authorization", "Bearer " AUTH_ID}};
+	if(const httplib::Result res = client.Get(PATH_TO_LIST, headers)){
+		std::cout << "in get_game_list(): status=" << res->status << ", body=" << res->body << std::endl;
+	}
+}
+
 // [{"gameId":1,"status":"in_use"}]
 static std::string create_payload(const uint16_t& bits, const char *status){
 	std::string payload;
