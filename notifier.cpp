@@ -10,10 +10,13 @@
 
 void get_game_list(){
 	httplib::Client client(API_URL);
+	client.enable_server_certificate_verification(false);
+	client.set_proxy(PROXY_URL, PROXY_PORT);
 	const httplib::Headers headers{{"Authorization", "Bearer " AUTH_ID}};
-	if(const httplib::Result res = client.Get(PATH_TO_LIST, headers)){
-		std::cout << "in get_game_list(): status=" << res->status << ", body=" << res->body << std::endl;
-	}
+	if(const httplib::Result res = client.Get(PATH_TO_LIST, headers))
+		std::cout << "in get_game_list(): status=" << res->status << ", body=" << res->body << "err=" << res.error() << std::endl;
+	else
+		std::cout <<  "err=" << res.error() << '\n';
 }
 
 // [{"gameId":1,"status":"in_use"}]
@@ -43,11 +46,15 @@ void notify_start(const uint16_t& first_group){
 		std::cout << "notify_start called" << "\n";
 		// create request
 		httplib::Client client(API_URL);
+		client.enable_server_certificate_verification(false);
+		client.set_proxy(PROXY_URL, PROXY_PORT);
 		const httplib::Headers headers{{"Authorization", "Bearer " AUTH_ID}};
 		const std::string payload=create_payload(first_group, "in_use");
 		if(const httplib::Result res = client.Post(PATH_TO_BATCH, headers, payload, "application/json")){
 			std::cout << "payload=" << payload << '\n';
-			std::cout << "in notify_start(): status=" << res->status << ", body=" << res->body << std::endl;
+			std::cout << "in notify_start(): status=" << res->status << ", body=" << res->body  << std::endl;
+		}else{
+			std::cout <<  "err=" << res.error() << '\n';
 		}
 	});
 	t.detach(); // HACK: use actor-pattern https://ja.wikipedia.org/wiki/%E3%82%A2%E3%82%AF%E3%82%BF%E3%83%BC%E3%83%A2%E3%83%87%E3%83%AB
@@ -59,11 +66,13 @@ void notify_end(const uint16_t& end_bits){
 		std::cout << "notify_end called" << "\n";
 		// create request
 		httplib::Client client(API_URL);
+		client.enable_server_certificate_verification(false);
+		client.set_proxy(PROXY_URL, PROXY_PORT);
 		const httplib::Headers headers{{"Authorization", "Bearer " AUTH_ID}};
 		const std::string payload=create_payload(end_bits, "available");
 		if(const httplib::Result res = client.Post(PATH_TO_BATCH, headers, payload, "application/json")){
 			std::cout << "payload=" << payload << '\n';
-			std::cout << "in notify_start(): status=" << res->status << ", body=" << res->body << std::endl;
+			std::cout << "in notify_start(): status=" << res->status << ", body=" << res->body << "err=" << res.error() << std::endl;
 		}
 	});
 	t.detach(); // HACK: use actor-pattern https://ja.wikipedia.org/wiki/%E3%82%A2%E3%82%AF%E3%82%BF%E3%83%BC%E3%83%A2%E3%83%87%E3%83%AB
