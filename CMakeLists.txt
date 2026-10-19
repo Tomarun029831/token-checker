@@ -7,14 +7,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(ZXing CONFIG REQUIRED)
-find_package(httplib CONFIG REQUIRED)
-find_package(OpenSSL REQUIRED)
 
 add_executable(token-checker
     main.cpp
     camera_handler.cpp
 	status_display.cpp
 	notifier.cpp
+	requester.cpp
 )
 
 target_include_directories(token-checker PRIVATE
@@ -22,9 +21,6 @@ target_include_directories(token-checker PRIVATE
 )
 
 target_link_libraries(token-checker PRIVATE
-	httplib::httplib
-	OpenSSL::SSL
-	OpenSSL::Crypto
     ZXing::Core
     ZXing::ZXing
 	mf
@@ -33,6 +29,7 @@ target_link_libraries(token-checker PRIVATE
     mfuuid
     ole32
 	propsys
+	winhttp
 )
 
 set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)

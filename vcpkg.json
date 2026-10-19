@@ -1,7 +1,5 @@
 {
   "dependencies": [
-    "cpp-httplib",
-    "nu-book-zxing-cpp",
-    "openssl"
+    "nu-book-zxing-cpp"
   ]
 }
