@@ -40,15 +40,11 @@ void push_task(std::function<void (void)> task){
 }
 
 // in get_game_list(): status=200, body=[{"gameId":1,"name":"例示ゲームA","status":"available","expectedEndAt":null},{"gameId":2,"name":"例示ゲームB","status":"available","expec tedEndAt":null},{"gameId":3,"name":"例示ゲームC","status":"available","expectedEndAt":null}]
-void get_game_list(){
-	push_task([]{
-		const HttpResponse res = https_request_once("GET", API_URL PATH_TO_LIST, NULL, PROXY_HOSTNAME ":" PROXY_PORT);
-		if(res.success) std::cout << "in get_game_list(): status=" << res.status << ", body=" << res.body << std::endl;
-		else {
-			const HttpResponse res = https_request_once("GET", API_URL PATH_TO_LIST, NULL, NULL);
-			if(res.success) std::cout << "in get_game_list(): status=" << res.status << ", body=" << res.body << std::endl;
-		}
-	});
+std::string get_game_list_from_remote(){
+	HttpResponse res=https_request_once("GET", API_URL PATH_TO_LIST, NULL, PROXY_HOSTNAME ":" PROXY_PORT);
+	if(res.success==false) res=https_request_once("GET", API_URL PATH_TO_LIST, NULL, NULL); // retry without delegating proxy
+	if(res.success) return res.body;
+	return "";
 }
 
 // [{"gameId":1,"status":"in_use"}]
@@ -78,17 +74,9 @@ void notify_start(const uint16_t& first_group){
 		std::cout << "notify_start called" << "\n";
 		// create request
 		const std::string payload=create_payload(first_group, "in_use");
-		const HttpResponse res = https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), PROXY_HOSTNAME ":" PROXY_PORT);
-		if(res.success){
-			std::cout << "payload=" << payload << '\n';
-			std::cout << "in notify_start(): status=" << res.status << ", body=" << res.body  << std::endl;
-		}else{
-			const HttpResponse res = https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), NULL);
-			if(res.success){
-				std::cout << "payload=" << payload << '\n';
-				std::cout << "in notify_start(): status=" << res.status << ", body=" << res.body  << std::endl;
-			}
-		}
+		HttpResponse res=https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), PROXY_HOSTNAME ":" PROXY_PORT);
+		if(res.success==false) res=https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), NULL); // retry without delegating proxy
+		if(res.success) std::cout << "payload=" << payload  << "\nin notify_start(): status=" << res.status << ", body=" << res.body  << std::endl;
 	});
 }
 
@@ -98,16 +86,8 @@ void notify_end(const uint16_t& end_bits){
 		std::cout << "notify_end called" << "\n";
 		// create request
 		const std::string payload=create_payload(end_bits, "available");
-		const HttpResponse res = https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), PROXY_HOSTNAME ":" PROXY_PORT);
-		if(res.success){
-			std::cout << "payload=" << payload << '\n';
-			std::cout << "in notify_end(): status=" << res.status << ", body=" << res.body << std::endl;
-		}else{
-			const HttpResponse res = https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), NULL);
-			if(res.success){
-				std::cout << "payload=" << payload << '\n';
-				std::cout << "in notify_end(): status=" << res.status << ", body=" << res.body  << std::endl;
-			}
-		}
+		HttpResponse res=https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), PROXY_HOSTNAME ":" PROXY_PORT);
+		if(res.success==false) res=https_request_once("POST", API_URL PATH_TO_BATCH, payload.c_str(), NULL); // retry without delegating proxy
+		if(res.success) std::cout << "payload=" << payload  << "\nin notify_start(): status=" << res.status << ", body=" << res.body  << std::endl;
 	});
 }

@@ -8,6 +8,7 @@
 #include "camera_handler.hpp"
 #include "notifier.hpp"
 #include "status_display.hpp"
+#include "token.hpp"
 
 // in windows
 // # setup
@@ -21,15 +22,8 @@
 // device name: Logi C270 HD WebCam, Integrated Camera
 // dependances: https://github.com/zxing-cpp/zxing-cpp, https://github.com/yhirose/cpp-httplib
 
-#ifdef _WIN32
-#include <windows.h>
-#endif
 int main(){
-#ifdef _WIN32
-    SetConsoleOutputCP(CP_UTF8);
-#endif
-	get_game_list();
-	// const CameraInfo camera_info = open_camera("Logi C270 HD WebCam");
+	// const CameraInfo camera_info=open_camera("Logi C270 HD WebCam");
 	const CameraInfo camera_info=open_camera("Integrated Camera");
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
@@ -39,10 +33,10 @@ int main(){
 	std::uint64_t checker_status=UINT64_MAX;
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
 	// 4bytes: | waiting_bits	|	managing_bits	| (each bits is 2bytes)
-	std::uint32_t token_status=UINT32_C(0b1111111111111111'1111111111111000);
+	std::uint32_t token_status=parse_game_list(get_game_list_from_remote());
 	// 2bytes: | reserved		|	last_timer(10 ~ 14sec)	|	middle_timer(5 ~ 9sec)	|	first_timer(0 ~ 4sec)	| (length of each bits is 4 bits)
-	std::uint16_t group_timer=UINT16_C(0xe'9'4);
-	std::chrono::time_point<std::chrono::steady_clock> last = std::chrono::steady_clock::now();
+	std::uint16_t group_timer=0xe'9'4;
+	std::chrono::time_point<std::chrono::steady_clock> last=std::chrono::steady_clock::now();
 
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
 		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
@@ -63,18 +57,18 @@ int main(){
 			for(const ZXing::Result& r : results){
 				// index=-15 => static_cast<unsigned>(-15) == UINT32_MAX-14 < 16 (false)
 				// index=17  => static_cast<unsigned>(17) < 16 (false)
-				const unsigned index = static_cast<const unsigned>(10 * (r.bytes()[0] - '0') + (r.bytes()[1] - '0'));
+				const unsigned index=static_cast<const unsigned>(10 * (r.bytes()[0] - '0') + (r.bytes()[1] - '0'));
 				const std::uint64_t state=index<16; // if(0>index || index>15) continue;
 				// set each bit at index to detected_bits
 				checker_status|=state<<(3*16+state*index); // https://en.algorithmica.org/hpc/pipelining/branchless/
 			}
 			// 1. remove detected token from each group
-			// 0001'0001'0001 * 1010 = 1010'1010'1010
+			// 0001'0001'0001 * 1010=1010'1010'1010
 			checker_status|=0x0000'0001'0001'0001ULL*(checker_status>>3*16);
 			// 3. add left tokens to last_group
-			// ~(~X xor Y) = X xor Y, (X xor Y) xor Z = X xor Y xor Z  より、
+			// ~(~X xor Y)=X xor Y, (X xor Y) xor Z=X xor Y xor Z  より、
 			// ~(~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)^static_cast<std::uint64_t>(token_status)<<16)
-			// = ~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16)
+			//=~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16)
 			checker_status=0xffff'0000'ffff'ffffULL&checker_status |
 				0x0000'ffff'0000'0000ULL&~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16); // 2. remove duplicate tokens of middle_group, first_group and waiting_bits from detected_bits
 			// 4. update each timer
