@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include <iostream>
 #include <ZXing/ReadBarcode.h>
-#include "ZXing/Barcode.h"
 #include "camera_handler.hpp"
 #include "device.hpp"
 #include "notifier.hpp"
