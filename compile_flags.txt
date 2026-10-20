@@ -2,4 +2,5 @@
 -I/usr/include/c++/13
 -I/usr/include/x86_64-linux-gnu/c++/13
 -I/usr/include/ZXing
+-I/usr/include/libcurl
 -I./build/vcpkg_installed/x64-windows/include

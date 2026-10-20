@@ -5,7 +5,10 @@
 #include <iostream>
 #include <ZXing/ReadBarcode.h>
 #include "camera_handler.hpp"
+#include "device.hpp"
+#include "notifier.hpp"
 #include "status_display.hpp"
+#include "token.hpp"
 
 // in windows
 // # setup
@@ -16,9 +19,9 @@
 // /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 0408:30c1"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 0408:30c1'
 // /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 046d:0825"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 046d:0825'
 // in wsl or linux
-// sudo apt install libzxing-dev
+// sudo apt install libzxing-dev libcurl4-openssl-dev
 // # build
-// g++ -std=c++20 *.cpp -o token-checker $(pkg-config --cflags --libs zxing); ./token-checker
+// g++ -std=c++20 *.cpp -o token-checker $(pkg-config --cflags --libs zxing libcurl); ./token-checker
 //
 // in windows
 // # reset
@@ -29,9 +32,10 @@
 // device name: C270 HD WEBCAM, Integrated Camera: Integrated C
 
 int main(){
-	const CameraInfo camera_info = open_camera("C270 HD WEBCAM");
-	// const CameraInfo camera_info=open_camera("Integrated Camera: Integrated C");
+	const CameraInfo camera_info = open_camera(WEBCAMERA_NAME);
+	// const CameraInfo camera_info=open_camera(INTEGRATEDCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
+	std::cout << get_game_list_from_remote();
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
@@ -39,66 +43,63 @@ int main(){
 	std::uint64_t checker_status=UINT64_MAX;
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
 	// 4bytes: | waiting_bits	|	managing_bits	| (each bits is 2bytes)
-	std::uint32_t token_status=UINT32_C(0b1111111111111111'1111000000000000);
+	std::uint32_t token_status=parse_game_list(get_game_list_from_remote());
 	// 2bytes: | reserved		|	last_timer(10 ~ 14sec)	|	middle_timer(5 ~ 9sec)	|	first_timer(0 ~ 4sec)	| (length of each bits is 4 bits)
-	std::uint16_t group_timer=UINT16_C(0xe'9'4);
-	std::chrono::time_point<std::chrono::steady_clock> last = std::chrono::steady_clock::now();
+	std::uint16_t group_timer=0xe'9'4;
+	std::chrono::time_point<std::chrono::steady_clock> last=std::chrono::steady_clock::now();
 
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
 		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
-			// std::cout << "\x1b[H\x1b[J";
+			std::cout << "\x1b[H\x1b[J";
+			display_group_timer(group_timer);
+			display_checker_status(checker_status);
+			display_token_status(token_status);
 
+			// get image of camera and find qrcodes out with library
 			constexpr std::size_t YUYV_PIXEL_BYTES=2, OFFSET_BYTES_TO_NEXT_LUMINANCE=2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
 			const ZXing::ImageView image_view(
 				frame_buffer->data, frame_buffer->width, frame_buffer->height,
 				frame_buffer->format, frame_buffer->width * YUYV_PIXEL_BYTES, OFFSET_BYTES_TO_NEXT_LUMINANCE);
 			const ZXing::Results results=ZXing::ReadBarcodes(image_view, options);
-
-			std::cout << "amount=" << results.size() << '\n';
-			display_group_timer(group_timer);
-			display_checker_status(checker_status);
-			display_token_status(token_status);
 			// 0. update detected_bits
-			checker_status=checker_status&UINT64_C(0x0000'ffff'ffff'ffff) | static_cast<const std::uint64_t>(token_status)<<3*16; // reset detected_bits and mask detected_bits with managing_bits
+			// reset detected_bits and mask detected_bits with managing_bits
+			checker_status=checker_status&0x0000'ffff'ffff'ffffULL | static_cast<std::uint64_t>(token_status)<<3*16;
 			for(const ZXing::Result& r : results){
-				const int index=std::atoi(r.text().c_str());
-				checker_status|=(static_cast<const std::uint64_t>(1)<<(3*16+index)); // set each bit at index to detected_bits
+				// index=-15 => static_cast<unsigned>(-15) == UINT32_MAX-14 < 16 (false)
+				// index=17  => static_cast<unsigned>(17) < 16 (false)
+				const unsigned index=static_cast<const unsigned>(10 * (r.bytes()[0] - '0') + (r.bytes()[1] - '0'));
+				const std::uint64_t state=index<16; // if(0>index || index>15) continue;
+				// set each bit at index to detected_bits
+				checker_status|=state<<(3*16+state*index); // https://en.algorithmica.org/hpc/pipelining/branchless/
 			}
 			// 1. remove detected token from each group
-			checker_status|=UINT64_C(0x0000'0001'0001'0001)*(checker_status>>3*16);
+			// 0001'0001'0001 * 1010=1010'1010'1010
+			checker_status|=0x0000'0001'0001'0001ULL*(checker_status>>3*16);
 			// 3. add left tokens to last_group
-			checker_status=checker_status&UINT64_C(0xffff'0000'ffff'ffff) |
-				~(~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)^static_cast<const std::uint64_t>(token_status)<<16)&UINT64_C(0x0000'ffff'0000'0000);	// 2. remove duplicate tokens of middle_group, first_group and waiting_bits from detected_bits
-																																										// HACK: dirty code
+			// ~(~X xor Y)=X xor Y, (X xor Y) xor Z=X xor Y xor Z  より、
+			// ~(~(~(checker_status>>16^checker_status<<16)^checker_status<<2*16)^static_cast<std::uint64_t>(token_status)<<16)
+			//=~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16)
+			checker_status=0xffff'0000'ffff'ffffULL&checker_status |
+				0x0000'ffff'0000'0000ULL&~(checker_status>>16^checker_status<<16^checker_status<<2*16^static_cast<std::uint64_t>(token_status)<<16); // 2. remove duplicate tokens of middle_group, first_group and waiting_bits from detected_bits
 			// 4. update each timer
-			if(std::chrono::steady_clock::now()-last>=std::chrono::seconds(1)){
-				if(group_timer==UINT16_C(0xa'5'0)){
-					group_timer=UINT16_C(0xf'0'0)|group_timer>>4; // set 0xf to last_timer because all timers have less time later.
-					// HACK: 5. send https request
-					for(std::uint_fast8_t i=0; i<16; ++i){
-						if(checker_status>>i&1) continue;
-						// TODO: create payload to notify begin of game
-						std::cout << "begin index=" << static_cast<int>(i) << '\n';
-					}
-					// TODO: send https request
-
+			const std::chrono::time_point<std::chrono::steady_clock> now=std::chrono::steady_clock::now();
+			if(now-last>=std::chrono::seconds(1)){
+				if(group_timer==0xa'5'0){
+					group_timer=0xf'0'0|group_timer>>4; // set 0xf to last_timer because all timers have less time later.
+					// 5. notify tokens started
+					notify_start(static_cast<uint16_t>(checker_status));
 					// 6. add tokens in first_group to waiting_bits
-					token_status&=checker_status<<16|UINT32_C(0x0000'ffff);
+					token_status&=checker_status<<16|0x0000'ffffU;
 					// 7. slide checker_status to drop out first_group from checker_status
-					checker_status=checker_status&UINT64_C(0xffff'0000'0000'0000) | checker_status>>16;
+					checker_status=checker_status&0xffff'0000'0000'0000ULL | checker_status>>16;
 				}
-				group_timer-=UINT16_C(0x111);
-				last=std::chrono::steady_clock::now();
+				group_timer-=0x111;
+				last=now;
 			}
-			// 8. find out tokens that should be sent to api
+			// 8. find out tokens and notify these to api
+			// 'bit is 0' means it should be sent
 			const std::uint16_t end_bits=~(checker_status>>3*16)|token_status>>16;
-			for(std::uint_fast8_t i=0; i<16; ++i){
-				if(end_bits>>i&1) continue;
-				// TODO: create payload to notify end of game
-				std::cout << "end index=" << static_cast<int>(i) << '\n';
-			}
-			// TODO: send https request
-			std::cout.flush();
+			notify_end(end_bits);
 
 			// 9. remove sent tokens from waiting_bits
 			token_status|=static_cast<const std::uint32_t>(~end_bits)<<16;

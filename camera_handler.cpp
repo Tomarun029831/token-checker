@@ -5,7 +5,6 @@
 #include <ZXing/ImageView.h>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <string>
 #include <unistd.h>
 #include <cerrno>
