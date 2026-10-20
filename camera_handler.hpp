@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <ZXing/ImageView.h>
+#include <string>
 
 struct FrameBuffer{
 	const ZXing::ImageFormat format;
@@ -24,6 +25,7 @@ struct Buffer {
 // };
 // inline constexpr CameraInfo INVALID_CAMERA_INFO={-1, NULL, 0};
 
+#ifdef _WIN64
 struct CameraInfo {
     void *charactor_file_descriptor=nullptr;
     Buffer *buffers=nullptr;
@@ -35,6 +37,15 @@ struct CameraInfo {
     bool operator!=(const CameraInfo& other) const { return !(*this==other); }
 };
 inline constexpr CameraInfo INVALID_CAMERA_INFO={nullptr, nullptr, 0, 0, 0};
+#elif __linux__
+struct CameraInfo{
+	const int charactor_file_descriptor;
+	Buffer *const buffers;
+	const std::size_t max_num_buffers, width, height;
+	inline bool operator==(const CameraInfo& rhs) const { return this->charactor_file_descriptor==rhs.charactor_file_descriptor; }
+};
+inline constexpr CameraInfo INVALID_CAMERA_INFO={-1, NULL, 0};
+#endif
 
 CameraInfo open_camera(const std::string& video_device_name);
 int close_camera(const CameraInfo *const camera_info);

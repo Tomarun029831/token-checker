@@ -201,7 +201,7 @@ static int xioctl(int fd, unsigned long request, void *argp){
 }
 
 // https://www.kernel.org/doc/html/v4.9/media/uapi/v4l/capture.c.html
-CameraInfo open_camera(const std::string video_device_name){
+CameraInfo open_camera(const std::string& video_device_name){
 	// searh the specifed charactor device
 	constexpr char v4l2_dir[]="/sys/class/video4linux";
 	if(std::filesystem::exists(v4l2_dir)==false) return INVALID_CAMERA_INFO;
@@ -219,11 +219,11 @@ CameraInfo open_camera(const std::string video_device_name){
 			if(device_name==video_device_name)
 				break;
 	}
-	const std::string dev_path = "/dev/" + name_file.path().filename().string();
+	const char *const dev_name=std::string("/dev/").append(name_file.generic_string().substr(sizeof(v4l2_dir), 6)).c_str();
 	// open the charactor device
 	struct stat st;
-	if(stat(dev_path.c_str(), &st)==-1 || !S_ISCHR(st.st_mode)) return INVALID_CAMERA_INFO; // https://ja.manpages.org/stat/2
-	const int fd=open(dev_path.c_str(), O_RDWR|O_NONBLOCK); // https://ja.manpages.org/open/2
+	if(stat(dev_name, &st)==-1 || !S_ISCHR(st.st_mode)) return INVALID_CAMERA_INFO; // https://ja.manpages.org/stat/2
+	const int fd=open(dev_name, O_RDWR|O_NONBLOCK); // https://ja.manpages.org/open/2
 	if(fd==-1) return INVALID_CAMERA_INFO;
 	// check capability as video camera
 	struct v4l2_capability cap;
