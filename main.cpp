@@ -30,6 +30,18 @@
 // /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 046d:0825"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 046d:0825'
 // in wsl or linux
 // sudo apt install libzxing-dev libcurl4-openssl-dev
+// sudo nmcli connection add \
+//   type wifi \
+//   con-name "Enterprise-WiFi" \
+//   ifname wlan0 \
+//   ssid "SSID_NAME" \
+//   wifi-sec.key-mgmt wpa-eap \
+//   802-1x.eap peap \
+//   802-1x.phase2-auth mschapv2 \
+//   802-1x.identity "YOUR_USERNAME" \
+//   802-1x.password "YOUR_PASSWORD"
+// sudo nmcli connection modify "Enterprise-WiFi" connection.autoconnect yes
+// sudo nmcli connection up "Enterprise-WiFi"
 // # build
 // g++ -std=c++20 *.cpp -o token-checker $(pkg-config --cflags --libs zxing libcurl); ./token-checker
 //
