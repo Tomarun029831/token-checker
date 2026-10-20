@@ -6,6 +6,7 @@
 #include <ZXing/ReadBarcode.h>
 #include "ZXing/Barcode.h"
 #include "camera_handler.hpp"
+#include "device.hpp"
 #include "notifier.hpp"
 #include "status_display.hpp"
 #include "token.hpp"
@@ -23,8 +24,8 @@
 // dependances: https://github.com/zxing-cpp/zxing-cpp, https://github.com/yhirose/cpp-httplib
 
 int main(){
-	// const CameraInfo camera_info=open_camera("Logi C270 HD WebCam");
-	const CameraInfo camera_info=open_camera("Integrated Camera");
+	// const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
+	const CameraInfo camera_info=open_camera(INTEGRATEDCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
