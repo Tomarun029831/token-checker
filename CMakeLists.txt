@@ -15,6 +15,7 @@ add_executable(token-checker
 	notifier.cpp
 	requester.cpp
 	token.cpp
+	utility.cpp
 )
 
 target_include_directories(token-checker PRIVATE

@@ -3,6 +3,7 @@
 #include <cwchar>
 #include <string>
 #include "camera_handler.hpp"
+#include "utility.hpp"
 
 #include <basetsd.h>
 #include <combaseapi.h>
