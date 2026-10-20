@@ -11,6 +11,7 @@
 #include "status_display.hpp"
 #include "token.hpp"
 
+// == setup for windows
 // in windows
 // # setup
 // vcpkg new --application; vcpkg add port nu-book-zxing-cpp cpp-httplib openssl
@@ -19,9 +20,24 @@
 // # run
 // .\build\Release\token-checker.exe
 //
-// # memo
-// device name: Logi C270 HD WebCam, Integrated Camera
-// dependances: https://github.com/zxing-cpp/zxing-cpp, https://github.com/yhirose/cpp-httplib
+// == setup for linux ==
+// in windows
+// # setup
+// winget install usbipd pwsh
+//
+// in wsl
+// # setup
+// /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 0408:30c1"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 0408:30c1'
+// /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd bind --hardware-id 046d:0825"' && /mnt/c/Program\ Files/PowerShell/7/pwsh.exe -c 'usbipd attach --wsl --hardware-id 046d:0825'
+// in wsl or linux
+// sudo apt install libzxing-dev libcurl4-openssl-dev
+// # build
+// g++ -std=c++20 *.cpp -o token-checker $(pkg-config --cflags --libs zxing libcurl); ./token-checker
+//
+// in windows
+// # reset
+// usbipd detach --hardware-id 0408:30c1; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 0408:30c1"';
+// usbipd detach --hardware-id 046d:0825; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 046d:0825"';
 
 int main(){
 	const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
@@ -94,7 +110,7 @@ int main(){
 			// 9. remove sent tokens from waiting_bits
 			token_status|=static_cast<const std::uint32_t>(~end_bits)<<16;
 
-			std::cout.flush();
+			std::cout.flush(); // PERF: should be removed
 		});
 
 	close_camera(&camera_info);
