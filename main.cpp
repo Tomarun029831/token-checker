@@ -24,8 +24,7 @@
 // dependances: https://github.com/zxing-cpp/zxing-cpp, https://github.com/yhirose/cpp-httplib
 
 int main(){
-	// const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
-	const CameraInfo camera_info=open_camera(INTEGRATEDCAMERA_NAME);
+	const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
@@ -41,11 +40,6 @@ int main(){
 
 	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
 		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
-			// std::cout << "\x1b[H\x1b[J";
-			// display_group_timer(group_timer);
-			// display_checker_status(checker_status);
-			// display_token_status(token_status);
-
 			// get image of camera and find qrcodes out with library
 			constexpr std::size_t YUYV_PIXEL_BYTES=2, OFFSET_BYTES_TO_NEXT_LUMINANCE=2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
 			const ZXing::ImageView image_view(
@@ -75,6 +69,11 @@ int main(){
 			// 4. update each timer
 			const std::chrono::time_point<std::chrono::steady_clock> now=std::chrono::steady_clock::now();
 			if(now-last>=std::chrono::seconds(1)){
+				// PERF: should be removed
+				std::cout << "\x1b[H\x1b[J";
+				display_group_timer(group_timer);
+				display_checker_status(checker_status);
+				display_token_status(token_status);
 				if(group_timer==0xa'5'0){
 					group_timer=0xf'0'0|group_timer>>4; // set 0xf to last_timer because all timers have less time later.
 					// 5. notify tokens started
