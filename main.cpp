@@ -35,7 +35,6 @@ int main(){
 	const CameraInfo camera_info = open_camera(WEBCAMERA_NAME);
 	// const CameraInfo camera_info=open_camera(INTEGRATEDCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
-	std::cout << get_game_list_from_remote();
 
     const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
