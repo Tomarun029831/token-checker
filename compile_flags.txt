@@ -3,3 +3,7 @@
 -I./build/vcpkg_installed/x64-windows/include
 -DWIN32_LEAN_AND_MEAN
 -DNOMINMAX
+-I/usr/include/c++/13
+-I/usr/include/x86_64-linux-gnu/c++/13
+-I/usr/include/ZXing
+-I/usr/include/libcurl
