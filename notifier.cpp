@@ -47,7 +47,7 @@ std::string get_game_list_from_remote(){
 	return "";
 }
 
-// [{"gameId":1,"status":"in_use"}]
+// [{"gameId":0,"status":"in_use"}]
 static std::string create_payload(const uint16_t& bits, const char *const status){
 	std::string payload;
 	payload.reserve(256);
@@ -56,7 +56,7 @@ static std::string create_payload(const uint16_t& bits, const char *const status
 		if(bits>>i&1) continue;
 		if(count!=0) payload+=',';
 		payload+="{\"gameId\":";
-		payload+=std::to_string(i + 1);
+		payload+='0'+i;
 		payload+=",\"status\":\"";
 		payload+=status;
 		payload+="\"}";
