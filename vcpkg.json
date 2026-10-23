@@ -1,5 +1,6 @@
 {
   "dependencies": [
-    "nu-book-zxing-cpp"
+    "apriltag",
+    "simde"
   ]
 }

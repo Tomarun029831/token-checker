@@ -1,3 +1,4 @@
+#include <cstdint>
 #ifdef _WIN64
 #include <cstdlib>
 #include <cwchar>
@@ -21,9 +22,9 @@
 struct NativeCamera {
 	winrt::com_ptr<IMFMediaSource> source;
 	winrt::com_ptr<IMFSourceReader> reader;
-	UINT32 width=0;
-	UINT32 height=0;
-	UINT32 stride_bytes_to_next_line=0;
+	int32_t width=0;
+	int32_t height=0;
+	int32_t stride_bytes_to_next_line=0;
 };
 
 CameraInfo open_camera(const std::string& video_device_name) {
@@ -167,7 +168,7 @@ int process_next_frame(const CameraInfo *const camera_info, const std::function<
 		const UINT32 required=camera->stride_bytes_to_next_line * camera->height;
 		if (current_length < required) { buffer->Unlock(); continue; }
 
-		const FrameBuffer frame_buffer{ ZXing::ImageFormat::Lum, camera->width, camera->height, source_data};
+		const FrameBuffer frame_buffer{ static_cast<int32_t>(camera->width), static_cast<int32_t>(camera->height), source_data};
 		processer(&frame_buffer);
 		buffer->Unlock(); // https://learn.microsoft.com/ja-jp/windows/win32/api/mfobjects/nf-mfobjects-imfmediabuffer-unlock
 		return EXIT_SUCCESS;
@@ -178,7 +179,6 @@ int process_next_frame(const CameraInfo *const camera_info, const std::function<
 #include <cstddef>
 #include <cstring>
 #include "camera_handler.hpp"
-#include <ZXing/ImageView.h>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -334,7 +334,6 @@ int process_next_frame(const CameraInfo *const camera_info, const std::function<
 		if(video_buffer.index>=camera_info->max_num_buffers) return EXIT_FAILURE;
 		// process buffer
 		const FrameBuffer frame_buffer={
-			ZXing::ImageFormat::Lum,
 			camera_info->width,
 			camera_info->height,
 			static_cast<const uint8_t *>(camera_info->buffers[video_buffer.index].start)};

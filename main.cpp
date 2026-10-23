@@ -3,13 +3,23 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
-#include <ZXing/ReadBarcode.h>
-#include "ZXing/CharacterSet.h"
+#include <apriltag/apriltag.h>
+#include <apriltag/tag25h9.h>
+#include <apriltag/common/image_u8.h>
+#include <vector>
+#include "apriltag/common/image_types.h"
+#include "apriltag/common/zarray.h"
 #include "camera_handler.hpp"
 #include "device.hpp"
 #include "notifier.hpp"
+#include "simde/arm/neon/ld2.h"
+#include "simde/arm/neon/st1.h"
+#include "simde/arm/neon/types.h"
 #include "status_display.hpp"
 #include "token.hpp"
+
+#define SIMDE_ENABLE_NATIVE_ALIASES
+#include <simde/arm/neon.h>
 
 // == setup for windows
 // in windows
@@ -52,16 +62,15 @@
 // usbipd detach --hardware-id 046d:0825; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 046d:0825"';
 
 int main(){
-	const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
+	const CameraInfo camera_info=open_camera(INTEGRATEDCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
-    const ZXing::ReaderOptions options=ZXing::ReaderOptions().
-		setFormats(ZXing::BarcodeFormat::QRCode).
-		setTryRotate(true).
-		setTryHarder(true).
-		setTryDownscale(false).
-		setMaxNumberOfSymbols(max_token_amount). // https://zxing-cpp.github.io/zxing-cpp/docs/class_z_xing_1_1_reader_options.html#a2f461f08095adb84286de31fe12845b1
-		setCharacterSet(ZXing::CharacterSet::ASCII);
+	std::vector<uint8_t> dst_gray(camera_info.width * camera_info.height);
+	apriltag_family_t *tf=tag25h9_create();
+    apriltag_detector_t *td=apriltag_detector_create();
+    apriltag_detector_add_family(td, tf);
+	td->quad_decimate=2;
+	td->nthreads=2;
 
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
 	// 8bytes: | detected_bits	|	last_group	|	middle_group	|	first_group	| (each bits is 2bytes)
@@ -73,24 +82,40 @@ int main(){
 	std::uint16_t group_timer=0xe'9'4;
 	std::chrono::time_point<std::chrono::steady_clock> last=std::chrono::steady_clock::now();
 
-	for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
-		r=process_next_frame(&camera_info, [&options, &checker_status, &token_status, &group_timer, &last](const FrameBuffer *const frame_buffer){
+        for(int r=EXIT_SUCCESS; r!=EXIT_FAILURE;)
+		r=process_next_frame(&camera_info, [&checker_status, &token_status, &group_timer, &last, &dst_gray, &td](const FrameBuffer *const frame_buffer){
 			// get image of camera and find qrcodes out with library
+			// PERF: duplicate luminosity of image for apriltag lib
 			constexpr std::size_t YUYV_PIXEL_BYTES=2, OFFSET_BYTES_TO_NEXT_LUMINANCE=2; // https://www.kernel.org/doc/html/v4.8/media/uapi/v4l/pixfmt-yuyv.html
-			const ZXing::ImageView image_view(
-				frame_buffer->data, frame_buffer->width, frame_buffer->height,
-				frame_buffer->format, frame_buffer->width * YUYV_PIXEL_BYTES, OFFSET_BYTES_TO_NEXT_LUMINANCE);
-			const ZXing::Results results=ZXing::ReadBarcodes(image_view, options);
+			uint_fast64_t i=0;
+			const int32_t pixel_nums=frame_buffer->height * frame_buffer->width;
+			for(; i+15<pixel_nums; i+=16){
+				simde_uint8x16x2_t yuyv_vec=simde_vld2q_u8(frame_buffer->data + OFFSET_BYTES_TO_NEXT_LUMINANCE*i);
+				simde_vst1q_u8(dst_gray.data()+i, yuyv_vec.val[0]);
+			}
+			for(; i<pixel_nums; ++i) dst_gray[i]=frame_buffer->data[OFFSET_BYTES_TO_NEXT_LUMINANCE*i];
+			// process img to find out apriltags
+			image_u8_t apriltag_img={
+				.width=frame_buffer->width,
+				.height=frame_buffer->height,
+				.stride=frame_buffer->width,
+				.buf=dst_gray.data()
+			};
+			const zarray_t *detections=apriltag_detector_detect(td, &apriltag_img);
+
 			// 0. update detected_bits
 			// reset detected_bits and mask detected_bits with managing_bits
 			checker_status=checker_status&0x0000'ffff'ffff'ffffULL | static_cast<std::uint64_t>(token_status)<<3*16;
-			for(const ZXing::Result& r : results){
+			for(int_fast8_t i=0; i<zarray_size(detections); ++i){
+				apriltag_detection_t *det;
+				zarray_get(detections, i, &det);
 				// index=-15 => static_cast<unsigned>(-15) == UINT32_MAX-14 < 16 (false)
 				// index=17  => static_cast<unsigned>(17) < 16 (false)
-				const unsigned index=static_cast<const unsigned>(10 * (r.bytes()[0] - '0') + (r.bytes()[1] - '0'));
-				const std::uint64_t state=index<16; // if(0>index || index>15) continue;
+				const unsigned index=det->id;
+				const std::uint64_t state=0<=index&&index<16; // if(0>index || index>15) continue;
 				// set each bit at index to detected_bits
 				checker_status|=state<<(3*16+state*index); // https://en.algorithmica.org/hpc/pipelining/branchless/
+				apriltag_detection_destroy(det);
 			}
 			// 1. remove detected token from each group
 			// 0001'0001'0001 * 1010=1010'1010'1010
@@ -132,6 +157,9 @@ int main(){
 			std::cout.flush(); // PERF: should be removed
 		});
 
+	apriltag_detector_remove_family(td, tf);
+	tag25h9_destroy(tf);
+	apriltag_detector_destroy(td);
 	close_camera(&camera_info);
 	return 0;
 }

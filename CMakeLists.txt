@@ -6,7 +6,8 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-find_package(ZXing CONFIG REQUIRED)
+find_package(apriltag CONFIG REQUIRED)
+find_path(SIMDE_INCLUDE_DIRS "simde/arm/neon.h")
 
 add_executable(token-checker
     main.cpp
@@ -20,11 +21,11 @@ add_executable(token-checker
 
 target_include_directories(token-checker PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+	${SIMDE_INCLUDE_DIRS}
 )
 
 target_link_libraries(token-checker PRIVATE
-    ZXing::Core
-    ZXing::ZXing
+	apriltag::apriltag
 	mf
     mfplat
     mfreadwrite
