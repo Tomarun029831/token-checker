@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <ZXing/ReadBarcode.h>
+#include "ZXing/CharacterSet.h"
 #include "camera_handler.hpp"
 #include "device.hpp"
 #include "notifier.hpp"
@@ -54,7 +55,14 @@ int main(){
 	const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
-    const ZXing::ReaderOptions options=ZXing::ReaderOptions().setFormats(ZXing::BarcodeFormat::QRCode);
+    const ZXing::ReaderOptions options=ZXing::ReaderOptions().
+		setFormats(ZXing::BarcodeFormat::QRCode).
+		setTryRotate(true).
+		setTryHarder(true).
+		setTryDownscale(false).
+		setMaxNumberOfSymbols(max_token_amount). // https://zxing-cpp.github.io/zxing-cpp/docs/class_z_xing_1_1_reader_options.html#a2f461f08095adb84286de31fe12845b1
+		setCharacterSet(ZXing::CharacterSet::ASCII);
+
 	// 'bit is 0' means token is added, 'bit is 1' means token is removed
 	// 8bytes: | detected_bits	|	last_group	|	middle_group	|	first_group	| (each bits is 2bytes)
 	std::uint64_t checker_status=UINT64_MAX;
