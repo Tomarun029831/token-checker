@@ -112,6 +112,7 @@ int main(){
 				// index=-15 => static_cast<unsigned>(-15) == UINT32_MAX-14 < 16 (false)
 				// index=17  => static_cast<unsigned>(17) < 16 (false)
 				const unsigned index=det->id;
+				const std::uint64_t is_reliable = (det->hamming==0)&&(det->decision_margin>80.0f);
 				const std::uint64_t state=0<=index&&index<16; // if(0>index || index>15) continue;
 				// set each bit at index to detected_bits
 				checker_status|=state<<(3*16+state*index); // https://en.algorithmica.org/hpc/pipelining/branchless/
