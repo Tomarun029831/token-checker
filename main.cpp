@@ -62,7 +62,7 @@
 // usbipd detach --hardware-id 046d:0825; pwsh -c 'Start-Process pwsh -Verb RunAs -ArgumentList "-Command", "usbipd unbind --hardware-id 046d:0825"';
 
 int main(){
-	const CameraInfo camera_info=open_camera(INTEGRATEDCAMERA_NAME);
+	const CameraInfo camera_info=open_camera(WEBCAMERA_NAME);
 	if(camera_info==INVALID_CAMERA_INFO) exit(EXIT_FAILURE);
 
 	std::vector<uint8_t> dst_gray(camera_info.width * camera_info.height);
